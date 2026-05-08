@@ -1,0 +1,22 @@
+@page "/"
+
+<PageTitle>Financials &mdash; Genera Systems</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="mt-8">
+    <MudPaper Class="pa-8" Elevation="2">
+        <MudText Typo="Typo.h3" GutterBottom="true">Hello, Financials</MudText>
+        <MudText Typo="Typo.body1" Class="mb-4">
+            Sprint 0 bootstrap. The plumbing is in place; product features land from Sprint 1 onward.
+        </MudText>
+
+        <MudDivider Class="my-4" />
+
+        <MudText Typo="Typo.subtitle2" GutterBottom="true">Diagnostics</MudText>
+        <MudList T="string" Dense="true">
+            <MudListItem T="string" Icon="@Icons.Material.Filled.HealthAndSafety">
+                <MudLink Href="/health" Target="_blank">/health</MudLink>
+                &mdash; database connectivity and CIMS reachability.
+            </MudListItem>
+        </MudList>
+    </MudPaper>
+</MudContainer>

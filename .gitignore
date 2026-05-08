@@ -1,0 +1,41 @@
+# .NET build output
+bin/
+obj/
+out/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+*.dbmdl
+*.dbproj.schemaview
+*.jfm
+
+# Visual Studio / Rider / VS Code
+.vs/
+.vscode/
+.idea/
+*.swp
+*.lock.json
+
+# Test results / coverage
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+*.trx
+
+# Local config and secrets
+appsettings.Development.json
+appsettings.Local.json
+secrets.json
+*.pfx
+*.snk
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

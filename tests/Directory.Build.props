@@ -1,0 +1,14 @@
+<Project>
+
+  <Import Project="..\Directory.Build.props" />
+
+  <PropertyGroup>
+    <!--
+      Test method naming intentionally uses snake_case (e.g., Method_does_thing).
+      CA1707 is correct for production code but conflicts with widely-used
+      xUnit naming conventions in test projects.
+    -->
+    <NoWarn>$(NoWarn);CA1707</NoWarn>
+  </PropertyGroup>
+
+</Project>

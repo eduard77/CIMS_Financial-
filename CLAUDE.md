@@ -818,5 +818,5 @@ The `cims-financial-integration-plan-v0.2.md` document is the canonical scope an
 
 
 
-\*Last updated: Sprint 0 bootstrap. Update this footer every sprint with what changed.\*
+\*Last updated: Sprint 0 bootstrap complete (2026-05-08). Solution scaffolded per §4; Serilog / MediatR / FluentValidation / MudBlazor wired; EF Core context with `fin` schema and InitialCreate migration in place; `ICimsClient` stub in Infrastructure; Blazor host serving "Hello, Financials" with `/health`; CI workflow on push / PR. See `docs/sprint-plan.md` parking lot for deferred decisions (ADR-0002 transport, ADR-0003 identity, ADR-0004 audit interceptor) and the missing canonical scope document. Update this footer every sprint with what changed.\*
 

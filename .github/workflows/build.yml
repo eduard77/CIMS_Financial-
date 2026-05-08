@@ -1,0 +1,66 @@
+name: build
+
+on:
+  push:
+    branches:
+      - main
+      - 'sprint-**'
+  pull_request:
+    branches:
+      - main
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+jobs:
+  build-and-test:
+    name: Build and test (unit + infrastructure)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore Financials.sln
+
+      - name: Build
+        run: dotnet build Financials.sln --no-restore --configuration Release
+
+      - name: Test - unit ring
+        run: >
+          dotnet test Financials.sln
+          --no-build
+          --configuration Release
+          --filter "Category!=Integration&Category!=Infrastructure"
+          --logger "trx;LogFileName=unit-tests.trx"
+          --results-directory ${{ github.workspace }}/TestResults
+
+      - name: Test - infrastructure ring (Testcontainers / SQL Server)
+        run: >
+          dotnet test Financials.sln
+          --no-build
+          --configuration Release
+          --filter "Category=Infrastructure"
+          --logger "trx;LogFileName=infrastructure-tests.trx"
+          --results-directory ${{ github.workspace }}/TestResults
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: ${{ github.workspace }}/TestResults/*.trx
+          if-no-files-found: warn
+
+      # Integration ring (Category=Integration) requires CIMS staging
+      # credentials and is run nightly / pre-release, not on every PR.
+      # It will be added as a separate workflow in Sprint 1 once the first
+      # real integration test exists.

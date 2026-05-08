@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Financials.Contracts</RootNamespace>
+    <AssemblyName>Financials.Contracts</AssemblyName>
+    <!--
+      Contracts holds versioned, public DTOs and event payloads shared with CIMS via NuGet.
+      No external runtime dependencies; serialisation is handled by consumers.
+    -->
+  </PropertyGroup>
+
+</Project>

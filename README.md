@@ -2,7 +2,7 @@
 
 Commercial management for UK construction. One of four independent products that together form the Genera Systems platform.
 
-> **Status:** Pre-Sprint 0 — repository scaffolding and planning. No releasable code yet.
+> **Status:** Sprint 0 complete — bootstrap. Solution builds clean, unit ring green, "Hello, Financials" page served through MudBlazor, `/health` endpoint live. No product features yet.
 > See [docs/sprint-plan.md](./docs/sprint-plan.md) for current sprint and roadmap.
 
 ---
@@ -203,4 +203,4 @@ Issues, security reports, and commercial enquiries: see CONTACT.md (when publish
 
 ---
 
-*This README describes the repository as of Sprint 0 bootstrap. It is updated each sprint with anything a new contributor or future Claude Code session needs to know on day one.*
+*This README reflects the repository as of Sprint 0 bootstrap (complete). Updated each sprint with anything a new contributor or future Claude Code session needs to know on day one.*
