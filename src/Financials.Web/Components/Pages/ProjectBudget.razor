@@ -50,6 +50,43 @@
             }
         </MudPaper>
 
+        @if (_currentDraft is not null && _canWrite)
+        {
+            <MudPaper Class="pa-4 mb-4" Elevation="1">
+                <MudText Typo="Typo.h6">Import BoQ XML</MudText>
+                <MudText Typo="Typo.body2" Class="mb-2">
+                    Upload a Genera BoQ XML 1.0 document. Lines are added to the open draft revision.
+                </MudText>
+                <MudFileUpload T="IBrowserFile" FilesChanged="OnBoqFilePickedAsync" Accept=".xml">
+                    <ActivatorContent>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.UploadFile">
+                            Choose .xml file
+                        </MudButton>
+                    </ActivatorContent>
+                </MudFileUpload>
+                @if (_importResult is not null)
+                {
+                    <MudAlert Severity="@(_importResult.Errors.Count == 0 ? Severity.Success : Severity.Warning)" Class="mt-3">
+                        Imported @_importResult.LinesImported line(s).
+                        @if (_importResult.Errors.Count > 0)
+                        {
+                            <ul>
+                                @foreach (var err in _importResult.Errors)
+                                {
+                                    <li>@err</li>
+                                }
+                            </ul>
+                        }
+                    </MudAlert>
+                }
+                @if (_importError is not null)
+                {
+                    <MudAlert Severity="Severity.Error" Class="mt-3">@_importError</MudAlert>
+                }
+            </MudPaper>
+        }
+
         @if (_currentDraft is not null)
         {
             <MudPaper Class="pa-4 mb-4" Elevation="1">
@@ -209,6 +246,9 @@
     private LineForm _lineForm = new();
     private string? _lineError;
 
+    private ImportBoqResult? _importResult;
+    private string? _importError;
+
     protected override async Task OnInitializedAsync()
     {
         _canWrite = Permissions.Has(AuthorizationPolicies.BudgetWrite);
@@ -334,6 +374,37 @@
         else
         {
             _loadError = result.Error;
+        }
+    }
+
+    private async Task OnBoqFilePickedAsync(IBrowserFile? file)
+    {
+        if (file is null) return;
+        _busy = true;
+        _importResult = null;
+        _importError = null;
+
+        try
+        {
+            using var stream = file.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024);
+            using var reader = new StreamReader(stream);
+            var xml = await reader.ReadToEndAsync();
+
+            var result = await Mediator.Send(new ImportBoqCommand(xml));
+            if (result.IsSuccess)
+            {
+                _importResult = result.Value;
+                Snackbar.Add($"Imported {result.Value!.LinesImported} BoQ line(s).", MudBlazor.Severity.Success);
+                await LoadAsync();
+            }
+            else
+            {
+                _importError = result.Error;
+            }
+        }
+        finally
+        {
+            _busy = false;
         }
     }
 
