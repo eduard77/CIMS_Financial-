@@ -1,6 +1,7 @@
 using Financials.Application.Persistence;
 using Financials.Domain.Budgets;
 using Financials.Domain.Projects;
+using Financials.Infrastructure.Inbox;
 using Microsoft.EntityFrameworkCore;
 
 namespace Financials.Infrastructure.Persistence;
@@ -20,6 +21,8 @@ public class FinancialsDbContext : DbContext, IFinancialsDbContext
         => Set<ProjectCommercialConfiguration>();
 
     public DbSet<Budget> Budgets => Set<Budget>();
+
+    internal DbSet<InboxEvent> InboxEvents => Set<InboxEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

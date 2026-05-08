@@ -1,6 +1,7 @@
 using System.Globalization;
 using Financials.Application;
 using Financials.Infrastructure;
+using Financials.Infrastructure.Inbox;
 using Financials.Web.Auth;
 using Financials.Web.Components;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -114,6 +115,32 @@ try
     app.UseAuthorization();
 
     app.MapHealthChecks("/health");
+
+    // Pattern B inbox endpoint (ADR-0007). HMAC-signed; allow-anonymous on
+    // the JwtBearer pipeline. Reads the raw body for signature verification.
+    app.MapPost("/api/events/incoming", async (
+        HttpRequest request,
+        IInboxEventDispatcher dispatcher,
+        CancellationToken cancellationToken) =>
+    {
+        request.EnableBuffering();
+        using var reader = new StreamReader(request.Body, leaveOpen: true);
+        var body = await reader.ReadToEndAsync(cancellationToken);
+        request.Body.Position = 0;
+
+        var signature = request.Headers["X-Signature"].ToString();
+        var result = await dispatcher.DispatchAsync(body, signature, cancellationToken);
+
+        return result.Outcome switch
+        {
+            InboxDispatchOutcome.Processed => Results.Ok(new { processed = true }),
+            InboxDispatchOutcome.Duplicate => Results.Ok(new { duplicate = true }),
+            InboxDispatchOutcome.BadSignature => Results.Unauthorized(),
+            InboxDispatchOutcome.BadEnvelope => Results.BadRequest(new { error = result.Detail }),
+            InboxDispatchOutcome.UnknownEventType => Results.BadRequest(new { error = result.Detail }),
+            _ => Results.StatusCode(500),
+        };
+    }).AllowAnonymous();
 
     app.MapRazorComponents<App>()
        .AddInteractiveServerRenderMode();
