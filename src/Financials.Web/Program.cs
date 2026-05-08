@@ -77,17 +77,20 @@ try
 
     builder.Services.AddAuthorization(options =>
     {
-        options.AddPolicy(
-            AuthorizationPolicies.ProjectsConfirm,
-            policy => policy
-                .RequireAuthenticatedUser()
-                .RequireClaim("permissions", AuthorizationPolicies.ProjectsConfirm));
-
-        options.AddPolicy(
+        foreach (var policyName in new[]
+        {
             AuthorizationPolicies.ProjectsRead,
-            policy => policy
-                .RequireAuthenticatedUser()
-                .RequireClaim("permissions", AuthorizationPolicies.ProjectsRead));
+            AuthorizationPolicies.ProjectsConfirm,
+            AuthorizationPolicies.SetupRead,
+            AuthorizationPolicies.SetupConfigure,
+        })
+        {
+            options.AddPolicy(
+                policyName,
+                policy => policy
+                    .RequireAuthenticatedUser()
+                    .RequireClaim("permissions", policyName));
+        }
     });
 
     var app = builder.Build();

@@ -34,6 +34,11 @@
                 <PropertyColumn Property="x => x.CimsProjectName" Title="Name" />
                 <PropertyColumn Property="x => x.ConfirmedAt" Title="Confirmed at" Format="dd/MM/yyyy HH:mm" />
                 <PropertyColumn Property="x => x.ConfirmedByUserId" Title="Confirmed by" />
+                <TemplateColumn Title="Setup">
+                    <CellTemplate>
+                        <MudLink Href="@($"/projects/{context.Item.Id}/setup")">Open setup</MudLink>
+                    </CellTemplate>
+                </TemplateColumn>
             </Columns>
         </MudDataGrid>
     }
