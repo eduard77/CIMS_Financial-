@@ -13,7 +13,7 @@
       DelegatingHandlers; adding `using` declarations everywhere obscures the
       arrange/act/assert flow without buying anything in a test process.
     -->
-    <NoWarn>$(NoWarn);CA1707;CA2000</NoWarn>
+    <NoWarn>$(NoWarn);CA1707;CA2000;CA1861;CA1034</NoWarn>
   </PropertyGroup>
 
 </Project>
