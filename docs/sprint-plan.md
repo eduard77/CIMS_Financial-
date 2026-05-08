@@ -11,7 +11,8 @@
 | Sprint 0 — Bootstrap | **Complete** | Solution scaffolding, EF Core, MudBlazor, /health, CI. |
 | Sprint 1 — Project Setup vertical slice | **Complete** | F0 item 5 met for projects: pick from CIMS, confirm, list. |
 | Sprint 2 — F0 complete | **Complete** | F0 items 1–4 met via CIMS catalog reads + Financials commercial overlay (ADR-0005). |
-| Sprint 3 — F1 Budget (start) | Next | NRM2 BoQ import, cost code structure leaf assignment, budget revisions. |
+| Sprint 3 — F1 Budget foundation | **Complete** | Budget aggregate (ADR-0006) + manual entry + revisions + rollup. F1 items 3 + 4 met. |
+| Sprint 4 — F1 Budget imports | Next | COBie/IFC-derived XML BoQ import (F1 #1), MS Project / P6 XML via Pattern B subscription (F1 #2). |
 
 ---
 
@@ -130,5 +131,6 @@ Items here block no work in the current sprint, but need a call before they affe
 | 0003 | Identity — CIMS-issued JWT, validated locally via OIDC discovery | Accepted |
 | 0004 | Audit interceptor and IAuditable interface | Accepted |
 | 0005 | F0 master data flow — CIMS catalogs + Financials commercial overlay | Accepted |
+| 0006 | Budget aggregate structure for F1 | Accepted |
 
 ADRs live in [`docs/decisions/`](./decisions/). Use [`0000-template.md`](./decisions/0000-template.md).

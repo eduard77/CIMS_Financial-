@@ -36,7 +36,9 @@
                 <PropertyColumn Property="x => x.ConfirmedByUserId" Title="Confirmed by" />
                 <TemplateColumn Title="Setup">
                     <CellTemplate>
-                        <MudLink Href="@($"/projects/{context.Item.Id}/setup")">Open setup</MudLink>
+                        <MudLink Href="@($"/projects/{context.Item.Id}/setup")">Setup</MudLink>
+                        &nbsp;|&nbsp;
+                        <MudLink Href="@($"/projects/{context.Item.Id}/budget")">Budget</MudLink>
                     </CellTemplate>
                 </TemplateColumn>
             </Columns>

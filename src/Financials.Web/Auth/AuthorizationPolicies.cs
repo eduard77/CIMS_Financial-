@@ -16,4 +16,13 @@ public static class AuthorizationPolicies
 
     /// <summary>F0 item 4 — write commercial setup (contract template, retention, payment terms).</summary>
     public const string SetupConfigure = "financials.setup.configure";
+
+    /// <summary>F1 — read budgets and revisions.</summary>
+    public const string BudgetRead = "financials.budget.read";
+
+    /// <summary>F1 — open revisions and add lines.</summary>
+    public const string BudgetWrite = "financials.budget.write";
+
+    /// <summary>F1 — approve a draft revision (separate gate from write per CLAUDE.md §5 role list).</summary>
+    public const string BudgetApprove = "financials.budget.approve";
 }

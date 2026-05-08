@@ -24,26 +24,36 @@ public static class FinancialsRolePermissions
                 AuthorizationPolicies.ProjectsConfirm,
                 AuthorizationPolicies.SetupRead,
                 AuthorizationPolicies.SetupConfigure,
+                AuthorizationPolicies.BudgetRead,
+                AuthorizationPolicies.BudgetWrite,
+                AuthorizationPolicies.BudgetApprove,
             },
             [FinancialsRole.QuantitySurveyor] = new[]
             {
                 AuthorizationPolicies.ProjectsRead,
                 AuthorizationPolicies.SetupRead,
+                AuthorizationPolicies.BudgetRead,
+                AuthorizationPolicies.BudgetWrite,
             },
             [FinancialsRole.CostEngineer] = new[]
             {
                 AuthorizationPolicies.ProjectsRead,
                 AuthorizationPolicies.SetupRead,
+                AuthorizationPolicies.BudgetRead,
+                AuthorizationPolicies.BudgetWrite,
             },
             [FinancialsRole.Approver] = new[]
             {
                 AuthorizationPolicies.ProjectsRead,
                 AuthorizationPolicies.SetupRead,
+                AuthorizationPolicies.BudgetRead,
+                AuthorizationPolicies.BudgetApprove,
             },
             [FinancialsRole.Viewer] = new[]
             {
                 AuthorizationPolicies.ProjectsRead,
                 AuthorizationPolicies.SetupRead,
+                AuthorizationPolicies.BudgetRead,
             },
         };
 }
