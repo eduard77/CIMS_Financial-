@@ -1,6 +1,7 @@
 using Financials.Application.Cims;
 using Financials.Application.Persistence;
 using Financials.Infrastructure.Cims;
+using Financials.Infrastructure.HealthChecks;
 using Financials.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,6 +25,10 @@ public static class InfrastructureServiceCollectionExtensions
         // Pattern A — Synchronous lookup. Sprint 0 stub; Sprint 1 replaces with
         // the real HTTP transport (ADR-0002).
         services.AddSingleton<ICimsClient, StubCimsClient>();
+
+        services.AddHealthChecks()
+            .AddCheck<FinancialsDbHealthCheck>("financials-db")
+            .AddCheck<CimsClientHealthCheck>("cims-client");
 
         return services;
     }

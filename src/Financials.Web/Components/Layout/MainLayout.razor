@@ -5,7 +5,16 @@
 <MudDialogProvider />
 <MudSnackbarProvider />
 
-@Body
+<MudLayout>
+    <MudAppBar Elevation="1">
+        <MudText Typo="Typo.h6">Genera Systems &mdash; Financials</MudText>
+        <MudSpacer />
+        <MudText Typo="Typo.caption">Sprint 0 bootstrap</MudText>
+    </MudAppBar>
+    <MudMainContent>
+        @Body
+    </MudMainContent>
+</MudLayout>
 
 <div id="blazor-error-ui">
     An unhandled error has occurred.

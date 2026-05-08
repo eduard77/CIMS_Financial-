@@ -51,6 +51,8 @@ try
 
     app.UseSerilogRequestLogging();
 
+    app.MapHealthChecks("/health");
+
     app.MapRazorComponents<App>()
        .AddInteractiveServerRenderMode();
 
