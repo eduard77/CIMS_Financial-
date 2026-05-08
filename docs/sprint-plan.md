@@ -14,7 +14,8 @@
 | Sprint 3 — F1 Budget foundation | **Complete** | Budget aggregate (ADR-0006) + manual entry + revisions + rollup. F1 items 3 + 4 met. |
 | Sprint 4 — F1 Budget imports | **Complete** | Pattern B inbox (ADR-0007) + ScheduleActivityCostLoaded_v1 handler + Genera BoQ XML 1.0 import. F1 items 1 + 2 met. |
 | Sprint 5 — F2 Commitments foundation | **Complete** | Commitment aggregate (ADR-0008) + raise + activate + close + counterparty resolution. F2 #1 met. |
-| Sprint 6 — F2 over-commitment + bonds + reconciliation | Next | F2 #2 over-commitment guard, F2 #3 bonds/warranties/insurances, F2 #4 reconciliation dashboard. |
+| Sprint 6 — F2 closeout | **Complete** | OverCommitmentGuard on PCC + activate-time check, CommitmentInsurance aggregate (ADR-0009), reconciliation query + UI. F2 items 2 + 3 + 4 met. |
+| Sprint 7–9 — F3 Change management | Next | NEC4 + JCT lifecycles, RFI links, schedule + budget impact, statutory clocks. |
 
 ---
 
