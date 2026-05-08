@@ -8,8 +8,9 @@
 
 | Sprint | Status | Notes |
 |---|---|---|
-| Sprint 0 — Bootstrap | **Complete** (this branch) | Solution scaffolding, EF Core, MudBlazor, /health, CI. |
-| Sprint 1 — Project Setup vertical slice | Next | First end-to-end slice: pick CIMS project, save locally. |
+| Sprint 0 — Bootstrap | **Complete** | Solution scaffolding, EF Core, MudBlazor, /health, CI. |
+| Sprint 1 — Project Setup vertical slice | **Complete** | F0 item 5 met for projects: pick from CIMS, confirm, list. |
+| Sprint 2 — F0 complete | Next | Tax setup, contract templates, retention rules, payment terms, role assignments. |
 
 ---
 
@@ -38,22 +39,34 @@ Deferred to Sprint 1 (with reason):
 
 ---
 
-## Sprint 1 — Vertical slice: Project Setup (F0, minimal)
+## Sprint 1 — Vertical slice: Project Setup (F0, minimal) — complete
 
 **Goal (CLAUDE.md §5):** A logged-in user can pick a project from a CIMS-sourced dropdown, confirm it for Financials use, and have a `FinancialsProject` record created locally. Display the confirmed list.
 
-Touches every layer once: auth, DB, CIMS API call, MediatR command + query, MudBlazor UI, all three test rings.
-
-Pre-requisite ADRs (accepted before any Sprint 1 code):
+Pre-requisite ADRs (accepted):
 
 - **ADR-0002** — CIMS HTTP transport: typed `HttpClient` with Polly retry, bearer-forwarding handler, and 60s `IMemoryCache` for read-heavy lookups. ([0002](./decisions/0002-cims-http-transport.md))
 - **ADR-0003** — Identity: CIMS-issued JWT validated locally via OIDC discovery. Authority `https://auth.genera-systems.com`, audience `financials`. ([0003](./decisions/0003-identity-cims-issued-jwt.md))
 - **ADR-0004** — Audit: `IAuditable` interface in `Domain.Common` + `AuditingSaveChangesInterceptor` driven by `IClock` and `ICurrentUserService`. ([0004](./decisions/0004-audit-interceptor-and-iauditable.md))
 
-Done when:
+Delivered:
 
-- All passing criteria for F0 item 5 met for this minimal slice ("Zero duplicate data entry between CIMS and Financials").
-- Three-ring tests green; demo recorded; integration test against CIMS staging.
+- **Foundations.** `IAuditable` (Domain.Common); `IClock` / `ICurrentUserService` / `IPermissionService` (Application.Common); `SystemClock`, `HttpContextCurrentUserService`, `ClaimsPermissionService` (Infrastructure.Common).
+- **Audit interceptor.** `AuditingSaveChangesInterceptor` stamps the four audit columns at SaveChanges; null `UserId` on an `IAuditable` change throws `InvalidOperationException` (CLAUDE.md §2 #8).
+- **Aggregate.** `FinancialsProject` (Domain.Projects) with private setters, static `Confirm(cimsProjectId, confirmedAt)` factory, `RowVersion` concurrency token, audit columns via `IAuditable`. Unique index on `CimsProjectId`. Migration `AddFinancialsProjects`. Repository pattern (`IFinancialsProjectRepository`) keeps Application EF-free.
+- **Real `CimsClient`.** Typed `HttpClient` registered via `AddHttpClient<ICimsClient, CimsClient>`. `BearerForwardingHandler` and `CorrelationIdHandler` chained. Polly retry (3 attempts, exponential backoff) with `HttpClient.Timeout = 30s`. `IMemoryCache` 60s TTL on `GetProjectAsync` and `ListProjectsAsync`. `PingAsync` calls CIMS `/health`. Sprint 0 stub deleted.
+- **JwtBearer auth.** OIDC discovery against `https://auth.genera-systems.com`, audience `financials`, 30s clock skew, `MapInboundClaims=false`, `RequireHttpsMetadata` enforced outside Development. Blazor Server WebSocket auth handled via `JwtBearerEvents.OnMessageReceived` lifting `access_token` from the `/_blazor` query string. Two named policies: `financials.projects.read`, `financials.projects.confirm`.
+- **MediatR pipeline.** `ValidationBehaviour` (FluentValidation, throws `ValidationException` on failure) and `LoggingBehaviour` (start / end / failed entries with elapsed ms via `[LoggerMessage]`). Hand-rolled `Result` / `Result<T>` for handler returns.
+- **Application slice.** `ConfirmCimsProjectCommand` + handler (Pattern A lookup, duplicate guard, audit-stamping save). `ListConfirmedProjectsQuery` + handler (per-project Pattern A resolve, cache-amortised). `ConfirmedProjectDto` for the UI.
+- **UI.** `/projects` (MudDataGrid, `[Authorize(ProjectsRead)]`) and `/projects/confirm` (MudSelect + MudButton, `[Authorize(ProjectsConfirm)]`). Loading / error / empty states first-class. `MainLayout` AppBar gains nav buttons.
+- **Tests (45 unit + 5 infrastructure ring + 3 in-process slice integration).** Domain (`FinancialsProject` invariants), Application (`Result`, `ValidationBehaviour`, both handlers), Infrastructure (DI smoke, `CimsClient` cache / bearer / correlation / Polly retry / 404, audit interceptor round-trip, identity services, migration smoke), Integration (in-process slice happy path, idempotency, unknown CIMS project).
+- **Docs.** `docs/api/cims-client.md` updated with the actual surface; README configuration block; this sprint plan.
+
+Deferred (not blocking sprint sign-off, will land in Sprint 2 or as the trigger arises):
+
+- **Manual browser demo.** No dev CIMS or dev OIDC authority running locally, so the Confirm flow can't be exercised in a real browser this sprint. The in-process integration test (Testcontainers + MediatR) is the equivalent E2E proof.
+- **CIMS-staging integration test.** `CimsStagingPlaceholder` retained as `[Trait("Category","Integration")]` skip until staging credentials are wired. CI does not run the Integration ring yet; that workflow lands when the first real test does.
+- **Permission gating in UI.** `[Authorize(Policy=...)]` enforces server-side; UI buttons aren't yet greyed by `IPermissionService.Has(...)` (CLAUDE.md §10 ergonomics). Adds in Sprint 2 once richer pages exist.
 
 ---
 
