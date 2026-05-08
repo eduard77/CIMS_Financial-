@@ -1,6 +1,8 @@
 using Financials.Application.Cims;
+using Financials.Application.Common;
 using Financials.Application.Persistence;
 using Financials.Infrastructure.Cims;
+using Financials.Infrastructure.Common;
 using Financials.Infrastructure.HealthChecks;
 using Financials.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -21,6 +23,8 @@ public static class InfrastructureServiceCollectionExtensions
                 sql.MigrationsAssembly(typeof(FinancialsDbContext).Assembly.GetName().Name)));
 
         services.AddScoped<IFinancialsDbContext>(sp => sp.GetRequiredService<FinancialsDbContext>());
+
+        services.AddSingleton<IClock, SystemClock>();
 
         // Pattern A — Synchronous lookup. Sprint 0 stub; Sprint 1 replaces with
         // the real HTTP transport (ADR-0002).

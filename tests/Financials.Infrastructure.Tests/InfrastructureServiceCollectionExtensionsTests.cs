@@ -1,4 +1,5 @@
 using Financials.Application.Cims;
+using Financials.Application.Common;
 using Financials.Application.Persistence;
 using Financials.Infrastructure;
 using Financials.Infrastructure.Persistence;
@@ -41,6 +42,24 @@ public class InfrastructureServiceCollectionExtensionsTests
         var client = provider.GetService<ICimsClient>();
 
         client.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void AddInfrastructure_registers_IClock_as_SystemClock()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        services.AddInfrastructure(FakeConnectionString);
+
+        using var provider = services.BuildServiceProvider();
+        var clock = provider.GetService<IClock>();
+
+        clock.Should().NotBeNull();
+        var first = clock!.UtcNow;
+        var second = clock.UtcNow;
+        second.Should().BeOnOrAfter(first);
+        first.Kind.Should().Be(DateTimeKind.Utc);
     }
 
     [Fact]
