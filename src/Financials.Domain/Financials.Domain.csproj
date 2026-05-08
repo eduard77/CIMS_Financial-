@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Financials.Domain</RootNamespace>
+    <AssemblyName>Financials.Domain</AssemblyName>
+    <!--
+      The Domain project has no external dependencies (CLAUDE.md §4).
+      No PackageReference / ProjectReference entries are permitted here.
+    -->
+  </PropertyGroup>
+
+</Project>
