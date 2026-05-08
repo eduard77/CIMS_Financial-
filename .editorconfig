@@ -1,0 +1,30 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = crlf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{json,yml,yaml,xml,csproj,props,targets}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.cs]
+# C# language conventions
+csharp_style_namespace_declarations = file_scoped:warning
+csharp_style_var_for_built_in_types = true:silent
+csharp_style_var_when_type_is_apparent = true:silent
+csharp_style_expression_bodied_methods = when_on_single_line:silent
+csharp_prefer_braces = true:warning
+csharp_new_line_before_open_brace = all
+csharp_using_directive_placement = outside_namespace:warning
+
+# Treat pattern-matching, nullable, and async hygiene as warnings
+dotnet_diagnostic.CS8602.severity = warning   # dereference of a possibly null reference
+dotnet_diagnostic.CS8618.severity = warning   # non-nullable not initialised
+dotnet_diagnostic.CA2007.severity = none      # ConfigureAwait — not needed in ASP.NET Core
