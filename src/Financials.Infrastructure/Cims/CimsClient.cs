@@ -24,6 +24,7 @@ internal sealed partial class CimsClient : ICimsClient
 {
     private const string ListProjectsPath = "api/projects";
     private const string ListContractTemplatesPath = "api/contract-templates";
+    private const string ListOrganisationsPath = "api/organisations";
     private const string PingPath = "health";
 
     private static readonly CompositeFormat GetProjectPathFormat
@@ -37,6 +38,12 @@ internal sealed partial class CimsClient : ICimsClient
 
     private static readonly CompositeFormat GetProjectRoleAssignmentsPathFormat
         = CompositeFormat.Parse("api/projects/{0}/role-assignments");
+
+    private static readonly CompositeFormat GetOrganisationPathFormat
+        = CompositeFormat.Parse("api/organisations/{0}");
+
+    private static readonly CompositeFormat ListOrganisationsByTypePathFormat
+        = CompositeFormat.Parse("api/organisations?type={0}");
 
     private readonly HttpClient _http;
     private readonly IMemoryCache _cache;
@@ -164,6 +171,44 @@ internal sealed partial class CimsClient : ICimsClient
                     new Uri(path, UriKind.Relative),
                     cancellationToken);
             })!;
+
+    // Pattern A — Synchronous lookup. ADR-0008 — F2 counterparty resolution.
+    public Task<CimsOrganisationSummary?> GetOrganisationAsync(
+        Guid cimsOrganisationId,
+        CancellationToken cancellationToken = default)
+        => _cache.GetOrCreateAsync(
+            CacheKey($"organisations:{cimsOrganisationId}"),
+            entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = _cacheTtl;
+                var path = string.Format(
+                    CultureInfo.InvariantCulture,
+                    GetOrganisationPathFormat,
+                    cimsOrganisationId);
+                return FetchOptionalAsync<CimsOrganisationSummary>(
+                    new Uri(path, UriKind.Relative),
+                    cancellationToken);
+            });
+
+    public Task<IReadOnlyList<CimsOrganisationSummary>> ListOrganisationsAsync(
+        OrganisationType? type,
+        CancellationToken cancellationToken = default)
+    {
+        var keySuffix = type is null ? "organisations:all" : $"organisations:by-type:{type}";
+        return _cache.GetOrCreateAsync(
+            CacheKey(keySuffix),
+            entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = _cacheTtl;
+                var uri = type is null
+                    ? new Uri(ListOrganisationsPath, UriKind.Relative)
+                    : new Uri(string.Format(
+                        CultureInfo.InvariantCulture,
+                        ListOrganisationsByTypePathFormat,
+                        type), UriKind.Relative);
+                return FetchListAsync<CimsOrganisationSummary>(uri, cancellationToken);
+            })!;
+    }
 
     private async Task<IReadOnlyList<CimsProjectSummary>> FetchProjectsAsync(CancellationToken cancellationToken)
         => await FetchListAsync<CimsProjectSummary>(
