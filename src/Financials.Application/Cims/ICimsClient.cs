@@ -31,4 +31,14 @@ public interface ICimsClient
     Task<IReadOnlyList<ProjectRoleAssignment>> GetProjectRoleAssignmentsAsync(
         Guid cimsProjectId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>F2 — CIMS-owned organisation directory (ADR-0008 counterparty resolution).</summary>
+    Task<CimsOrganisationSummary?> GetOrganisationAsync(
+        Guid cimsOrganisationId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>F2 — list organisations of a given type (e.g. Subcontractor) for the picker.</summary>
+    Task<IReadOnlyList<CimsOrganisationSummary>> ListOrganisationsAsync(
+        OrganisationType? type,
+        CancellationToken cancellationToken = default);
 }

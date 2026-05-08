@@ -25,4 +25,10 @@ public static class AuthorizationPolicies
 
     /// <summary>F1 — approve a draft revision (separate gate from write per CLAUDE.md §5 role list).</summary>
     public const string BudgetApprove = "financials.budget.approve";
+
+    /// <summary>F2 — read commitments + lines.</summary>
+    public const string CommitmentsRead = "financials.commitments.read";
+
+    /// <summary>F2 — raise / add lines to / activate / close commitments.</summary>
+    public const string CommitmentsWrite = "financials.commitments.write";
 }

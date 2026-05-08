@@ -12,7 +12,9 @@
 | Sprint 1 — Project Setup vertical slice | **Complete** | F0 item 5 met for projects: pick from CIMS, confirm, list. |
 | Sprint 2 — F0 complete | **Complete** | F0 items 1–4 met via CIMS catalog reads + Financials commercial overlay (ADR-0005). |
 | Sprint 3 — F1 Budget foundation | **Complete** | Budget aggregate (ADR-0006) + manual entry + revisions + rollup. F1 items 3 + 4 met. |
-| Sprint 4 — F1 Budget imports | Next | COBie/IFC-derived XML BoQ import (F1 #1), MS Project / P6 XML via Pattern B subscription (F1 #2). |
+| Sprint 4 — F1 Budget imports | **Complete** | Pattern B inbox (ADR-0007) + ScheduleActivityCostLoaded_v1 handler + Genera BoQ XML 1.0 import. F1 items 1 + 2 met. |
+| Sprint 5 — F2 Commitments foundation | **Complete** | Commitment aggregate (ADR-0008) + raise + activate + close + counterparty resolution. F2 #1 met. |
+| Sprint 6 — F2 over-commitment + bonds + reconciliation | Next | F2 #2 over-commitment guard, F2 #3 bonds/warranties/insurances, F2 #4 reconciliation dashboard. |
 
 ---
 
@@ -133,5 +135,6 @@ Items here block no work in the current sprint, but need a call before they affe
 | 0005 | F0 master data flow — CIMS catalogs + Financials commercial overlay | Accepted |
 | 0006 | Budget aggregate structure for F1 | Accepted |
 | 0007 | Pattern B inbox — HMAC-signed webhooks with a per-spoke secret | Accepted |
+| 0008 | Commitment aggregate — single root with type discriminator | Accepted |
 
 ADRs live in [`docs/decisions/`](./decisions/). Use [`0000-template.md`](./decisions/0000-template.md).

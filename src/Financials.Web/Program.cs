@@ -87,6 +87,8 @@ try
             AuthorizationPolicies.BudgetRead,
             AuthorizationPolicies.BudgetWrite,
             AuthorizationPolicies.BudgetApprove,
+            AuthorizationPolicies.CommitmentsRead,
+            AuthorizationPolicies.CommitmentsWrite,
         })
         {
             options.AddPolicy(

@@ -27,6 +27,8 @@ public static class FinancialsRolePermissions
                 AuthorizationPolicies.BudgetRead,
                 AuthorizationPolicies.BudgetWrite,
                 AuthorizationPolicies.BudgetApprove,
+                AuthorizationPolicies.CommitmentsRead,
+                AuthorizationPolicies.CommitmentsWrite,
             },
             [FinancialsRole.QuantitySurveyor] = new[]
             {
@@ -34,6 +36,8 @@ public static class FinancialsRolePermissions
                 AuthorizationPolicies.SetupRead,
                 AuthorizationPolicies.BudgetRead,
                 AuthorizationPolicies.BudgetWrite,
+                AuthorizationPolicies.CommitmentsRead,
+                AuthorizationPolicies.CommitmentsWrite,
             },
             [FinancialsRole.CostEngineer] = new[]
             {
@@ -41,6 +45,7 @@ public static class FinancialsRolePermissions
                 AuthorizationPolicies.SetupRead,
                 AuthorizationPolicies.BudgetRead,
                 AuthorizationPolicies.BudgetWrite,
+                AuthorizationPolicies.CommitmentsRead,
             },
             [FinancialsRole.Approver] = new[]
             {
@@ -48,12 +53,14 @@ public static class FinancialsRolePermissions
                 AuthorizationPolicies.SetupRead,
                 AuthorizationPolicies.BudgetRead,
                 AuthorizationPolicies.BudgetApprove,
+                AuthorizationPolicies.CommitmentsRead,
             },
             [FinancialsRole.Viewer] = new[]
             {
                 AuthorizationPolicies.ProjectsRead,
                 AuthorizationPolicies.SetupRead,
                 AuthorizationPolicies.BudgetRead,
+                AuthorizationPolicies.CommitmentsRead,
             },
         };
 }

@@ -1,5 +1,6 @@
 using Financials.Application.Persistence;
 using Financials.Domain.Budgets;
+using Financials.Domain.Commitments;
 using Financials.Domain.Projects;
 using Financials.Infrastructure.Inbox;
 using Microsoft.EntityFrameworkCore;
@@ -21,6 +22,8 @@ public class FinancialsDbContext : DbContext, IFinancialsDbContext
         => Set<ProjectCommercialConfiguration>();
 
     public DbSet<Budget> Budgets => Set<Budget>();
+
+    public DbSet<Commitment> Commitments => Set<Commitment>();
 
     internal DbSet<InboxEvent> InboxEvents => Set<InboxEvent>();
 

@@ -1,0 +1,220 @@
+@page "/projects/{financialsProjectId:guid}/commitments"
+@attribute [Authorize(Policy = AuthorizationPolicies.CommitmentsRead)]
+@inject IMediator Mediator
+@inject ICimsClient Cims
+@inject IPermissionService Permissions
+@inject ISnackbar Snackbar
+@rendermode InteractiveServer
+
+<PageTitle>Commitments &mdash; Financials</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
+    <MudText Typo="Typo.h4" GutterBottom="true">Commitments</MudText>
+
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+    }
+    else if (_loadError is not null)
+    {
+        <MudAlert Severity="Severity.Error">@_loadError</MudAlert>
+    }
+    else
+    {
+        @if (_canWrite)
+        {
+            <MudPaper Class="pa-4 mb-4" Elevation="1">
+                <MudText Typo="Typo.h6" GutterBottom="true">Raise commitment</MudText>
+                <MudGrid>
+                    <MudItem xs="12" md="3">
+                        <MudSelect T="CommitmentType" @bind-Value="_form.Type" Label="Type">
+                            <MudSelectItem T="CommitmentType" Value="CommitmentType.Subcontract">Subcontract</MudSelectItem>
+                            <MudSelectItem T="CommitmentType" Value="CommitmentType.PurchaseOrder">Purchase order</MudSelectItem>
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" md="3">
+                        <MudTextField @bind-Value="_form.Reference" Label="Reference" />
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudSelect T="Guid?" @bind-Value="_form.CounterpartyId" Label="Counterparty (CIMS)">
+                            @foreach (var org in _organisations ?? Array.Empty<CimsOrganisationSummary>())
+                            {
+                                <MudSelectItem T="Guid?" Value="org.Id">@($"{org.OrganisationType} — {org.Name} ({org.Reference})")</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                </MudGrid>
+                @if (_raiseError is not null)
+                {
+                    <MudAlert Severity="Severity.Error" Class="mt-2">@_raiseError</MudAlert>
+                }
+                <MudButton Class="mt-3" Variant="Variant.Filled" Color="Color.Primary"
+                           OnClick="RaiseAsync"
+                           Disabled="@(!CanRaise() || _busy)"
+                           StartIcon="@Icons.Material.Filled.Add">Raise</MudButton>
+            </MudPaper>
+        }
+
+        @if (_commitments is { Count: 0 })
+        {
+            <MudAlert Severity="Severity.Info">No commitments yet for this project.</MudAlert>
+        }
+        else
+        {
+            <MudDataGrid T="CommitmentDto" Items="@_commitments" Dense="true" Hover="true">
+                <Columns>
+                    <PropertyColumn Property="x => x.Reference" Title="Reference" />
+                    <PropertyColumn Property="x => x.Type" Title="Type" />
+                    <PropertyColumn Property="x => x.CounterpartyName" Title="Counterparty" />
+                    <PropertyColumn Property="x => x.Status" Title="Status" />
+                    <TemplateColumn Title="Total">
+                        <CellTemplate>@($"{context.Item.TotalValue.ToString("N2", _uk)} {context.Item.Currency}")</CellTemplate>
+                    </TemplateColumn>
+                    <PropertyColumn Property="x => x.LineCount" Title="Lines" />
+                    <TemplateColumn Title="Actions">
+                        <CellTemplate>
+                            @if (context.Item.Status == CommitmentStatus.Draft && _canWrite)
+                            {
+                                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Success"
+                                           OnClick="@(() => ActivateAsync(context.Item.Id))" Disabled="@_busy">
+                                    Activate
+                                </MudButton>
+                            }
+                            else if (context.Item.Status == CommitmentStatus.Active && _canWrite)
+                            {
+                                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning"
+                                           OnClick="@(() => CloseAsync(context.Item.Id))" Disabled="@_busy">
+                                    Close
+                                </MudButton>
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
+                </Columns>
+            </MudDataGrid>
+        }
+    }
+</MudContainer>
+
+@code {
+    [Parameter] public Guid FinancialsProjectId { get; set; }
+
+    private readonly CultureInfo _uk = CultureInfo.GetCultureInfo("en-GB");
+
+    private bool _loading = true;
+    private string? _loadError;
+    private bool _busy;
+    private bool _canWrite;
+
+    private IReadOnlyList<CommitmentDto>? _commitments;
+    private IReadOnlyList<CimsOrganisationSummary>? _organisations;
+
+    private RaiseForm _form = new();
+    private string? _raiseError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _canWrite = Permissions.Has(AuthorizationPolicies.CommitmentsWrite);
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _loadError = null;
+
+        var result = await Mediator.Send(new GetCommitmentsForProjectQuery(FinancialsProjectId));
+        if (result.IsSuccess)
+        {
+            _commitments = result.Value;
+        }
+        else
+        {
+            _loadError = result.Error;
+        }
+
+        if (_organisations is null)
+        {
+            try
+            {
+                _organisations = await Cims.ListOrganisationsAsync(type: null);
+            }
+            catch (HttpRequestException)
+            {
+                _organisations = Array.Empty<CimsOrganisationSummary>();
+            }
+        }
+
+        _loading = false;
+    }
+
+    private bool CanRaise() =>
+        _canWrite
+        && _form.Type != CommitmentType.Unknown
+        && !string.IsNullOrWhiteSpace(_form.Reference)
+        && _form.CounterpartyId is { };
+
+    private async Task RaiseAsync()
+    {
+        if (_form.CounterpartyId is null) return;
+        _busy = true;
+        _raiseError = null;
+
+        var result = await Mediator.Send(new RaiseCommitmentCommand(
+            FinancialsProjectId,
+            _form.Type,
+            _form.Reference,
+            _form.CounterpartyId.Value));
+
+        _busy = false;
+
+        if (result.IsSuccess)
+        {
+            Snackbar.Add($"Commitment {_form.Reference} raised.", MudBlazor.Severity.Success);
+            _form = new RaiseForm();
+            await LoadAsync();
+        }
+        else
+        {
+            _raiseError = result.Error;
+        }
+    }
+
+    private async Task ActivateAsync(Guid commitmentId)
+    {
+        _busy = true;
+        var result = await Mediator.Send(new ActivateCommitmentCommand(commitmentId));
+        _busy = false;
+        if (result.IsSuccess)
+        {
+            Snackbar.Add("Commitment activated.", MudBlazor.Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            _loadError = result.Error;
+        }
+    }
+
+    private async Task CloseAsync(Guid commitmentId)
+    {
+        _busy = true;
+        var result = await Mediator.Send(new CloseCommitmentCommand(commitmentId));
+        _busy = false;
+        if (result.IsSuccess)
+        {
+            Snackbar.Add("Commitment closed.", MudBlazor.Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            _loadError = result.Error;
+        }
+    }
+
+    private sealed class RaiseForm
+    {
+        public CommitmentType Type { get; set; } = CommitmentType.Subcontract;
+        public string Reference { get; set; } = string.Empty;
+        public Guid? CounterpartyId { get; set; }
+    }
+}
