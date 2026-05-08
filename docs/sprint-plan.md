@@ -132,5 +132,6 @@ Items here block no work in the current sprint, but need a call before they affe
 | 0004 | Audit interceptor and IAuditable interface | Accepted |
 | 0005 | F0 master data flow — CIMS catalogs + Financials commercial overlay | Accepted |
 | 0006 | Budget aggregate structure for F1 | Accepted |
+| 0007 | Pattern B inbox — HMAC-signed webhooks with a per-spoke secret | Accepted |
 
 ADRs live in [`docs/decisions/`](./decisions/). Use [`0000-template.md`](./decisions/0000-template.md).
