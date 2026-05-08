@@ -73,14 +73,17 @@ public sealed class F2CloseoutSliceTests : IAsyncLifetime
     [Fact]
     public async Task Activate_in_Warn_mode_succeeds_with_warnings_when_over_budget()
     {
-        var ctx = await SetupBudgetAndCounterpartyAsync(OverCommitmentGuardMode.Warn, budgetForCostCode: 100m);
+        var setup = await SetupBudgetAndCounterpartyAsync(OverCommitmentGuardMode.Warn, budgetForCostCode: 100m);
 
-        var raise = await ctx.Mediator.Send(new RaiseCommitmentCommand(
-            ctx.FinancialsProjectId, CommitmentType.Subcontract, "SC-OVER", ctx.CounterpartyId));
-        await ctx.Mediator.Send(new AddCommitmentLineCommand(
-            raise.Value, 1, ctx.CostCode, "Over budget line", 10m, "no", 25m));
+        await using var scope = _provider!.CreateAsyncScope();
+        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
 
-        var activate = await ctx.Mediator.Send(new ActivateCommitmentCommand(raise.Value));
+        var raise = await mediator.Send(new RaiseCommitmentCommand(
+            setup.FinancialsProjectId, CommitmentType.Subcontract, "SC-OVER", setup.CounterpartyId));
+        await mediator.Send(new AddCommitmentLineCommand(
+            raise.Value, 1, setup.CostCode, "Over budget line", 10m, "no", 25m));
+
+        var activate = await mediator.Send(new ActivateCommitmentCommand(raise.Value));
 
         activate.IsSuccess.Should().BeTrue();
         activate.Value!.Warnings.Should().NotBeEmpty();
@@ -90,20 +93,21 @@ public sealed class F2CloseoutSliceTests : IAsyncLifetime
     [Fact]
     public async Task Activate_in_HardBlock_mode_returns_failure_when_over_budget()
     {
-        var ctx = await SetupBudgetAndCounterpartyAsync(OverCommitmentGuardMode.HardBlock, budgetForCostCode: 100m);
+        var setup = await SetupBudgetAndCounterpartyAsync(OverCommitmentGuardMode.HardBlock, budgetForCostCode: 100m);
 
-        var raise = await ctx.Mediator.Send(new RaiseCommitmentCommand(
-            ctx.FinancialsProjectId, CommitmentType.Subcontract, "SC-BLOCKED", ctx.CounterpartyId));
-        await ctx.Mediator.Send(new AddCommitmentLineCommand(
-            raise.Value, 1, ctx.CostCode, "Way over", 10m, "no", 50m));
+        await using var scope = _provider!.CreateAsyncScope();
+        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
 
-        var activate = await ctx.Mediator.Send(new ActivateCommitmentCommand(raise.Value));
+        var raise = await mediator.Send(new RaiseCommitmentCommand(
+            setup.FinancialsProjectId, CommitmentType.Subcontract, "SC-BLOCKED", setup.CounterpartyId));
+        await mediator.Send(new AddCommitmentLineCommand(
+            raise.Value, 1, setup.CostCode, "Way over", 10m, "no", 50m));
+
+        var activate = await mediator.Send(new ActivateCommitmentCommand(raise.Value));
 
         activate.IsFailure.Should().BeTrue();
         activate.Error.Should().Contain("HardBlock");
 
-        // No state change.
-        await using var scope = _provider!.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<FinancialsDbContext>();
         var commitment = await db.Commitments.AsNoTracking().SingleAsync(c => c.Id == raise.Value);
         commitment.Status.Should().Be(CommitmentStatus.Draft);
@@ -112,49 +116,56 @@ public sealed class F2CloseoutSliceTests : IAsyncLifetime
     [Fact]
     public async Task Reconciliation_returns_per_cost_code_breakdown_after_active_commitment()
     {
-        var ctx = await SetupBudgetAndCounterpartyAsync(OverCommitmentGuardMode.Warn, budgetForCostCode: 1000m);
+        var setup = await SetupBudgetAndCounterpartyAsync(OverCommitmentGuardMode.Warn, budgetForCostCode: 1000m);
 
-        var raise = await ctx.Mediator.Send(new RaiseCommitmentCommand(
-            ctx.FinancialsProjectId, CommitmentType.Subcontract, "SC-RECON", ctx.CounterpartyId));
-        await ctx.Mediator.Send(new AddCommitmentLineCommand(
-            raise.Value, 1, ctx.CostCode, "Some work", 10m, "no", 60m));
-        await ctx.Mediator.Send(new ActivateCommitmentCommand(raise.Value));
+        await using var scope = _provider!.CreateAsyncScope();
+        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
 
-        var rollup = await ctx.Mediator.Send(new GetCommitmentReconciliationQuery(ctx.FinancialsProjectId));
+        var raise = await mediator.Send(new RaiseCommitmentCommand(
+            setup.FinancialsProjectId, CommitmentType.Subcontract, "SC-RECON", setup.CounterpartyId));
+        await mediator.Send(new AddCommitmentLineCommand(
+            raise.Value, 1, setup.CostCode, "Some work", 10m, "no", 60m));
+        await mediator.Send(new ActivateCommitmentCommand(raise.Value));
+
+        var rollup = await mediator.Send(new GetCommitmentReconciliationQuery(setup.FinancialsProjectId));
 
         rollup.IsSuccess.Should().BeTrue();
         rollup.Value!.BudgetTotal.Should().Be(1000m);
         rollup.Value.CommittedTotal.Should().Be(600m);
         rollup.Value.Uncommitted.Should().Be(400m);
-        var row = rollup.Value.ByCostCode.Single(r => r.CimsCostCodeId == ctx.CostCode);
+        var row = rollup.Value.ByCostCode.Single(r => r.CimsCostCodeId == setup.CostCode);
         row.IsOverCommitted.Should().BeFalse();
     }
 
     [Fact]
     public async Task Insurance_register_then_query_lists_expiry_with_correct_alert_level()
     {
-        var ctx = await SetupBudgetAndCounterpartyAsync(OverCommitmentGuardMode.Warn, budgetForCostCode: 1000m);
-        var raise = await ctx.Mediator.Send(new RaiseCommitmentCommand(
-            ctx.FinancialsProjectId, CommitmentType.Subcontract, "SC-INS", ctx.CounterpartyId));
-        await ctx.Mediator.Send(new AddCommitmentLineCommand(
-            raise.Value, 1, ctx.CostCode, "Work", 1m, "no", 100m));
-        await ctx.Mediator.Send(new ActivateCommitmentCommand(raise.Value));
+        var setup = await SetupBudgetAndCounterpartyAsync(OverCommitmentGuardMode.Warn, budgetForCostCode: 1000m);
+
+        await using var scope = _provider!.CreateAsyncScope();
+        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+
+        var raise = await mediator.Send(new RaiseCommitmentCommand(
+            setup.FinancialsProjectId, CommitmentType.Subcontract, "SC-INS", setup.CounterpartyId));
+        await mediator.Send(new AddCommitmentLineCommand(
+            raise.Value, 1, setup.CostCode, "Work", 1m, "no", 100m));
+        await mediator.Send(new ActivateCommitmentCommand(raise.Value));
 
         var now = DateTime.UtcNow;
-        await ctx.Mediator.Send(new RegisterCommitmentInsuranceCommand(
+        await mediator.Send(new RegisterCommitmentInsuranceCommand(
             raise.Value, InsuranceCategory.Bond, InsuranceSubTypes.PerformanceBond,
             "Acme Bonding", 50000m, now.AddDays(-30), now.AddDays(5), "PB-001"));
 
-        var expiries = await ctx.Mediator.Send(new GetInsuranceExpiriesForProjectQuery(ctx.FinancialsProjectId));
+        var expiries = await mediator.Send(new GetInsuranceExpiriesForProjectQuery(setup.FinancialsProjectId));
 
         expiries.IsSuccess.Should().BeTrue();
         expiries.Value.Should().ContainSingle();
-        expiries.Value!.Single().AlertLevel.Should().Be("Critical");
         var single = expiries.Value!.Single();
+        single.AlertLevel.Should().Be("Critical");
         single.DaysUntilExpiry.Should().BeInRange(4, 5);
     }
 
-    private async Task<TestContext> SetupBudgetAndCounterpartyAsync(
+    private async Task<TestSetup> SetupBudgetAndCounterpartyAsync(
         OverCommitmentGuardMode mode,
         decimal budgetForCostCode)
     {
@@ -184,13 +195,11 @@ public sealed class F2CloseoutSliceTests : IAsyncLifetime
             budgetId, revisionId, 1, costCode, "Budget line", 1m, "no", budgetForCostCode));
         await mediator.Send(new ApproveBudgetRevisionCommand(budgetId, revisionId));
 
-        return new TestContext(_provider!, financialsProjectId, costCode, counterpartyId, mediator);
+        return new TestSetup(financialsProjectId, costCode, counterpartyId);
     }
 
-    private sealed record TestContext(
-        IServiceProvider Provider,
+    private sealed record TestSetup(
         Guid FinancialsProjectId,
         Guid CostCode,
-        Guid CounterpartyId,
-        IMediator Mediator);
+        Guid CounterpartyId);
 }
