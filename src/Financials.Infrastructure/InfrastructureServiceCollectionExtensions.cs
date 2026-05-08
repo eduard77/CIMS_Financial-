@@ -1,7 +1,9 @@
+using Financials.Application.Budgets;
 using Financials.Application.Cims;
 using Financials.Application.Common;
 using Financials.Application.Persistence;
 using Financials.Application.Projects;
+using Financials.Infrastructure.Budgets;
 using Financials.Infrastructure.Cims;
 using Financials.Infrastructure.Common;
 using Financials.Infrastructure.HealthChecks;
@@ -40,6 +42,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IFinancialsDbContext>(sp => sp.GetRequiredService<FinancialsDbContext>());
         services.AddScoped<IFinancialsProjectRepository, FinancialsProjectRepository>();
         services.AddScoped<IProjectCommercialConfigurationRepository, ProjectCommercialConfigurationRepository>();
+        services.AddScoped<IBudgetRepository, BudgetRepository>();
 
         services.AddCimsClient(configuration);
 
