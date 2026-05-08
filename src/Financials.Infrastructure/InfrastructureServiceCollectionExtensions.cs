@@ -8,8 +8,12 @@ using Financials.Infrastructure.HealthChecks;
 using Financials.Infrastructure.Persistence;
 using Financials.Infrastructure.Projects;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
+using Polly;
+using Polly.Extensions.Http;
 
 namespace Financials.Infrastructure;
 
@@ -17,9 +21,11 @@ public static class InfrastructureServiceCollectionExtensions
 {
     public static IServiceCollection AddInfrastructure(
         this IServiceCollection services,
-        string connectionString)
+        string connectionString,
+        IConfiguration configuration)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+        ArgumentNullException.ThrowIfNull(configuration);
 
         services.AddSingleton<IClock, SystemClock>();
         services.TryAddScoped<ICurrentUserService, AnonymousCurrentUserService>();
@@ -34,13 +40,50 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IFinancialsDbContext>(sp => sp.GetRequiredService<FinancialsDbContext>());
         services.AddScoped<IFinancialsProjectRepository, FinancialsProjectRepository>();
 
-        // Pattern A — Synchronous lookup. Sprint 0 stub; Sprint 1 replaces with
-        // the real HTTP transport (ADR-0002).
-        services.AddSingleton<ICimsClient, StubCimsClient>();
+        services.AddCimsClient(configuration);
 
         services.AddHealthChecks()
             .AddCheck<FinancialsDbHealthCheck>("financials-db")
             .AddCheck<CimsClientHealthCheck>("cims-client");
+
+        return services;
+    }
+
+    /// <summary>
+    /// Pattern A — Synchronous lookup. Typed <see cref="HttpClient"/> per ADR-0002,
+    /// with bearer-forwarding and correlation-id handlers and a Polly retry policy.
+    /// </summary>
+    internal static IServiceCollection AddCimsClient(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        services.AddOptions<CimsClientOptions>()
+            .Bind(configuration.GetSection(CimsClientOptions.SectionName))
+            .Validate(o => o.BaseAddress is not null,
+                "Cims:BaseAddress is required (ADR-0002).");
+
+        services.AddMemoryCache();
+        services.AddHttpContextAccessor();
+        services.AddTransient<BearerForwardingHandler>();
+        services.AddTransient<CorrelationIdHandler>();
+
+        services.AddHttpClient<ICimsClient, CimsClient>((sp, http) =>
+        {
+            var opts = sp.GetRequiredService<IOptions<CimsClientOptions>>().Value;
+            http.BaseAddress = opts.BaseAddress;
+            http.Timeout = opts.TotalTimeout;
+        })
+        .AddHttpMessageHandler<BearerForwardingHandler>()
+        .AddHttpMessageHandler<CorrelationIdHandler>()
+        .AddPolicyHandler((sp, _) =>
+        {
+            var opts = sp.GetRequiredService<IOptions<CimsClientOptions>>().Value;
+            return HttpPolicyExtensions
+                .HandleTransientHttpError()
+                .WaitAndRetryAsync(
+                    opts.RetryCount,
+                    attempt => TimeSpan.FromMilliseconds(200 * Math.Pow(2, attempt - 1)));
+        });
 
         return services;
     }

@@ -35,7 +35,7 @@ try
         ?? throw new InvalidOperationException(
             "Missing connection string 'FinancialsDb'. Configure via appsettings.json, " +
             "user-secrets, or the FINANCIALS_DB_CONNECTION environment variable.");
-    builder.Services.AddInfrastructure(connectionString);
+    builder.Services.AddInfrastructure(connectionString, builder.Configuration);
 
     var app = builder.Build();
 

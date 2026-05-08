@@ -1,14 +1,15 @@
 namespace Financials.Application.Cims;
 
 /// <summary>
-/// Abstraction over Pattern A (synchronous lookup) calls into CIMS.
-///
-/// In Sprint 0 the only member is <see cref="PingAsync"/> — enough to wire the
-/// dependency through composition and exercise the abstraction in /health.
-/// Real lookup methods (e.g. <c>GetProjectAsync</c>) are added in Sprint 1
-/// alongside the first vertical slice and ADR-0002 (Refit vs typed HttpClient).
+/// Pattern A — Synchronous lookup against CIMS (CLAUDE.md §6, ADR-0002).
+/// Methods throw <see cref="HttpRequestException"/> on transport failure
+/// (handler converts to <c>Result.Failure</c>); 404 lookups return <c>null</c>.
 /// </summary>
 public interface ICimsClient
 {
     Task<bool> PingAsync(CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<CimsProjectSummary>> ListProjectsAsync(CancellationToken cancellationToken = default);
+
+    Task<CimsProjectSummary?> GetProjectAsync(Guid cimsProjectId, CancellationToken cancellationToken = default);
 }
