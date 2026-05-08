@@ -7,6 +7,7 @@ using Financials.Infrastructure.HealthChecks;
 using Financials.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Financials.Infrastructure;
 
@@ -18,13 +19,17 @@ public static class InfrastructureServiceCollectionExtensions
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 
-        services.AddDbContext<FinancialsDbContext>(options =>
-            options.UseSqlServer(connectionString, sql =>
-                sql.MigrationsAssembly(typeof(FinancialsDbContext).Assembly.GetName().Name)));
+        services.AddSingleton<IClock, SystemClock>();
+        services.TryAddScoped<ICurrentUserService, AnonymousCurrentUserService>();
+        services.AddScoped<AuditingSaveChangesInterceptor>();
+
+        services.AddDbContext<FinancialsDbContext>((sp, options) =>
+            options
+                .UseSqlServer(connectionString, sql =>
+                    sql.MigrationsAssembly(typeof(FinancialsDbContext).Assembly.GetName().Name))
+                .AddInterceptors(sp.GetRequiredService<AuditingSaveChangesInterceptor>()));
 
         services.AddScoped<IFinancialsDbContext>(sp => sp.GetRequiredService<FinancialsDbContext>());
-
-        services.AddSingleton<IClock, SystemClock>();
 
         // Pattern A — Synchronous lookup. Sprint 0 stub; Sprint 1 replaces with
         // the real HTTP transport (ADR-0002).
