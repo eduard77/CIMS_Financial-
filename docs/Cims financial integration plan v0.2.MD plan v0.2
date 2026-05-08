@@ -1,0 +1,340 @@
+# CIMS Financial Integration — Plan v0.2
+
+> Canonical scope, architecture, and passing criteria for the Genera Systems Financials product.
+> Referenced by `CLAUDE.md` and `docs/decisions/0001-architecture-baseline.md`.
+> If this document and any other disagree, **this document wins** and the other is updated.
+
+- **Status:** Accepted, baseline for Sprint 0 onwards
+- **Version:** 0.2
+- **Date:** 2026-05-07
+- **Owner:** Eduard / Genera Systems Ltd
+
+---
+
+## 1. Architectural model
+
+Four independent applications, each with its own database, its own deployment, its own release cadence. They are not modules of a monolith — they are separate products that *integrate*. CIMS is the integration hub: once another product is registered with CIMS, it can discover and communicate with the other registered products through CIMS as the broker.
+
+The four products:
+
+| Product | Owns |
+|---|---|
+| **CIMS** | Information management, document control, ISO 19650 CDE, golden thread, identity, project master, organisation directory — **and the integration broker** |
+| **QA/HSE** | ITPs, snagging, permits to work, inspections, hazard registers, RAMS, competency records |
+| **Optimisation Engine** | Schedule baselines and revisions, activity progress, productivity data, NSGA-III multi-objective optimisation, DCMA scoring |
+| **Financials** | *This product.* Budgets, commitments, change events, valuations, AFP, retention, CIS, CVR, GL integration |
+
+Communication flows **through CIMS**, not directly between spokes. QA does not call Financials directly; QA publishes events to CIMS, and Financials subscribes to CIMS for the events it needs.
+
+This is what makes each product genuinely independent:
+
+- Any spoke can be down, redeployed, or replaced without breaking the others.
+- A customer can buy any subset of the four products.
+- A spoke can ship features without coordinating release dates with the other spokes.
+
+---
+
+## 2. Why CIMS is the hub, not a peer
+
+A common reference layer is unavoidable — every product needs to know which project it is working on, which parties exist, and who is allowed to do what. The choice is whether that reference layer is a fifth shared service or whether it is owned by one of the four products.
+
+Owning it inside CIMS is the cleaner answer because CIMS is already the information-management product, the golden-thread evidence assembler, and the contractual hub where project records originate. Putting it in a separate fifth service adds operational overhead without adding value.
+
+The architectural rationale is captured in full in [ADR-0001](./decisions/0001-architecture-baseline.md).
+
+---
+
+## 3. Master data spine — owned by CIMS, consumed by all
+
+Single sources of truth held in the CIMS database and exposed via API:
+
+- **Project master:** ID, name, contract form, parties, dates, locations, gateway status.
+- **Organisation directory:** clients, principal contractor, subcontractors, consultants, suppliers, with addresses and HMRC CIS verification status.
+- **People and role assignments:** with permission matrix.
+- **Cost breakdown structure:** mapped to Uniclass 2015 EF/Ss codes, NRM2-compatible.
+- **Project calendar:** with UK bank holidays, working hours, non-working exclusions.
+- **Tax and currency setup:** GBP default, UK VAT bands (20% / 5% / 0%), CIS deduction rates (20% / 30% / 0% / gross), Reverse Charge VAT toggle for in-scope construction services.
+- **Audit log:** written to by all four products, forming the golden thread evidence layer.
+
+**Reconciliation rule:** if two products both think they hold a piece of data, one of them is wrong. Identify which one owns it, and the other holds only a reference plus a cached read-only snapshot for display.
+
+Financials never duplicates any of this. Every reference to a project, a subcontractor, a cost code, or a contract clause is a foreign-key reference to a CIMS record, refreshed via API on read.
+
+---
+
+## 4. Integration mechanics — three patterns
+
+Every cross-product interaction uses exactly one of these. No fourth pattern. Every payload is versioned (`_v1`, `_v2`, ...) so contracts can evolve without breaking subscribers.
+
+### Pattern A — Synchronous lookup
+
+A spoke needs current reference data from CIMS.
+
+**Example:** Financials creating a new commitment needs the subcontractor's organisation record.
+
+**Mechanics:** REST call to CIMS API, response is authoritative. Cached briefly with short TTL (60 seconds for read-heavy lookups). Polly retry policy: 3 retries, exponential backoff, 30-second total timeout.
+
+**Failure mode:** if CIMS is unreachable, the user sees a clear "CIMS unavailable" banner and the action is blocked. The platform never fabricates data.
+
+### Pattern B — Event publication and subscription
+
+A spoke completes a domain action and publishes an event to CIMS, which broadcasts to subscribed spokes.
+
+**Example:** QA signs off an ITP and publishes `ITPCompleted_v1`. CIMS records it in the golden thread and forwards to Financials, which unlocks the corresponding measured-work line for billing.
+
+**Mechanics — outgoing events:**
+- Persist to a local `OutboxEvents` table inside the same DB transaction as the domain change.
+- A background service drains the outbox and POSTs to CIMS event endpoint.
+- Retry indefinitely with backoff. CIMS being down delays delivery; it never loses data.
+
+**Mechanics — incoming events:**
+- Webhook endpoint at `/api/events/incoming` validates CIMS signature.
+- Persist to `InboxEvents` table.
+- A handler dispatches to MediatR notification handlers.
+- Idempotent by `EventId` — re-delivery never causes duplication.
+
+### Pattern C — Document handoff
+
+A spoke produces a formal document and registers it with CIMS, which stores the metadata and version-controlled file in the golden thread.
+
+**Example:** Financials issues a Payment Certificate. The PDF is generated locally, then POSTed to CIMS document endpoint. CIMS returns a document URI which Financials stores; the file itself lives in CIMS.
+
+**Mechanics:**
+- Documents are immutable once registered.
+- Corrections issue new versions, never overwrite.
+- Used for: payment certificates, AFPs, change-event AFI letters, final accounts.
+
+---
+
+## 5. Registration and discovery
+
+Once a spoke is integrated with CIMS, it registers itself: product name, version, base URL, authentication credentials, the events it publishes, and the events it subscribes to. CIMS holds a service registry.
+
+When Financials needs to know whether a QA module is available for a given project, it asks CIMS, not QA directly.
+
+This is what makes a customer running CIMS + Financials only (no QA yet) work cleanly. Financials checks the registry, finds no QA service, and falls back to manual measured-work approval rather than the ITP-gated workflow. When the customer adds QA later, registration triggers automatic upgrade — no Financials redeployment needed.
+
+---
+
+## 6. Financial product — sub-modules F0–F9
+
+Functional scope, in dependency order. Each sub-module is built as a discrete deliverable that adds capability without breaking earlier ones.
+
+### F0 — Setup
+
+Configure contract template (NEC4 ECC, JCT D&B, JCT SBC, custom), tax setup, CIS regime, retention rules, payment terms, calendar, currency, user roles (commercial manager, QS, cost engineer, viewer, approver). All input pulls from CIMS master data; no separate organisation or cost code entry.
+
+### F1 — Budget
+
+Import original budget from NRM2-format BoQ or from cost-loaded schedule supplied by the optimisation engine. Support multi-level structure (project → work package → cost code → activity). Track revisions with reason, approver, and date. Reconcile rollups to the penny.
+
+### F2 — Commitments
+
+Create subcontracts and purchase orders against budget lines, with package scope, value, retention percentage, payment terms, bonds, warranties, and insurances. Track expiries. Enforce the rule that committed value plus uncommitted budget always equals original budget plus approved changes.
+
+### F3 — Change management
+
+UK-specific value layer.
+
+For **NEC4 ECC**: Early Warning Register, Compensation Event lifecycle (notification, quotation, assessment, implementation, AFI) with statutory time periods enforced and clock-running indicators.
+
+For **JCT**: Architect's Instructions, Confirmations of Verbal Instructions, Variations Register, valuation routes (Schedule 2 quotation, Clause 5.3.3, etc.).
+
+Each change event links bidirectionally to:
+- The source RFI, drawing revision, or instruction in CIMS;
+- Schedule impact in the Optimisation Engine;
+- Budget impact in F1.
+
+The audit chain feeds the golden thread directly.
+
+### F4 — Valuations and Applications for Payment
+
+Generate interim AFPs combining measured work valuation against the schedule of values, materials on and off site, variations, and retention. Issue statutory Payment Notice within five working days of the due date and Pay Less Notice within the prescribed period under the Construction Act 1996.
+
+**Critical gate:** an AFP cannot include measured work where the corresponding ITP in the QA module is not signed off. This single gate prevents disputed billing and is a real differentiator.
+
+### F5 — Subcontract administration
+
+Receive subcontractor applications, value them, certify, calculate CIS deductions against HMRC verification status, apply Reverse Charge VAT where applicable, track retention through Practical Completion and Defects Liability Period, manage contra-charges and offsets, and run the final account.
+
+### F6 — Cash flow and forecasting
+
+Generate forward S-curves from the cost-loaded schedule plus commitments plus payment terms. Compare actual against plan. Run re-forecasts on schedule slip or commitment changes.
+
+### F7 — Cost Value Reconciliation (CVR)
+
+Monthly CVR pack with earned value against schedule, accruals, provisions for risk and opportunity, subcontractor liability provisioning, and forecast final cost. CVR is standard practice in UK contracting and Procore handles it weakly — done well, this is a wedge feature on its own.
+
+### F8 — General Ledger integration
+
+Two-way connectors to Xero, Sage 50/200/Intacct, QuickBooks, with cost-code mapping and bank reconciliation. Posted certificates flow out as journal entries; bank transactions flow back in for reconciliation. The platform never tries to be the books of record — that stays in the customer's existing accounting system.
+
+### F9 — Reporting and dashboards
+
+Standard pack: cost report, cash-flow report, variance report, CVR pack, final account, RICS-standard exports. Custom dashboard builder. PDF, Excel, and CSV outputs.
+
+---
+
+## 7. Cross-product integration touchpoints
+
+Every entry below uses one of the three patterns from §4.
+
+| Touchpoint | Pattern | Direction |
+|---|---|---|
+| Financials reads project master, parties, CBS | A — Synchronous lookup | Financials → CIMS |
+| Financials reads RFIs and drawing references | A — Synchronous lookup | Financials → CIMS |
+| Financials publishes change events | B — Event publication | Financials → CIMS → (QA, Optimisation) |
+| Financials publishes payment certificates | C — Document handoff | Financials → CIMS |
+| Financials publishes final accounts | C — Document handoff | Financials → CIMS |
+| Financials subscribes to ITP completion events | B — Event subscription | QA → CIMS → Financials |
+| Financials subscribes to schedule progress events | B — Event subscription | Optimisation → CIMS → Financials |
+| Financials publishes budget and actuals to optimisation | B — Event publication | Financials → CIMS → Optimisation |
+
+---
+
+## 8. Passing criteria
+
+These are the testable acceptance criteria for considering each sub-module "done." A sub-module is **not** released to the next phase until all of its criteria pass, plus the cross-cutting integration test layer below.
+
+### Cross-cutting (every sub-module)
+
+Every cross-product touchpoint requires:
+
+1. An explicit contract test that runs against a CIMS test harness with the other product mocked.
+2. An end-to-end test against a live CIMS staging environment.
+3. Idempotency proof: every event handler tested with duplicate delivery, asserting no duplication of state.
+
+### F0 — Setup
+
+1. Cost code structure with at least four levels can be created, with each leaf code mapped to a Uniclass 2015 code.
+2. UK tax setup applied: VAT 20% / 5% / 0%, CIS 20% / 30% / 0% / gross, Reverse Charge VAT toggle.
+3. NEC4 ECC and JCT D&B/SBC contract templates configurable.
+4. Permissions enforced across roles; unauthorised actions blocked and logged.
+5. Zero duplicate data entry between CIMS and Financials — all setup pulls from CIMS APIs.
+
+### F1 — Budget
+
+1. NRM2-format BoQ imports cleanly to cost codes; rollups reconcile to within £0.01.
+2. Cost-loaded MS Project XML and Primavera P6 XML import from the Optimisation Engine.
+3. Budget revision triggers audit trail with reason, approver, and timestamp.
+4. Multi-level rollup project → package → cost code → activity reconciles bidirectionally.
+
+### F2 — Commitments
+
+1. Subcontracts and POs can be raised against budget lines with package scope, value, retention, payment terms.
+2. Over-commitment against a budget line raises a blocking warning (configurable to hard block).
+3. Bonds, warranties, and insurances tracked with expiry alerts at 30 / 14 / 7 days.
+4. Reconciliation rule holds: committed + uncommitted = budget + approved changes, always.
+
+### F3 — Change management
+
+1. NEC4 lifecycle enforced with statutory clock indicators (Early Warning, CE Notification, Quotation, Implementation, AFI).
+2. JCT lifecycle enforced (AI, CVI, Variation, Valuation route selection).
+3. Every change event links to its source RFI / drawing / instruction in CIMS bidirectionally.
+4. Schedule impact pushed to Optimisation Engine and acknowledged.
+5. Budget impact pushed to F1.
+6. Full audit trail satisfies BSA golden-thread evidence requirements.
+
+### F4 — Valuations and AFP
+
+1. AFP generates with measured work, variations, materials, retention, and net total.
+2. Payment Notice produced within five working days of due date; Pay Less Notice produced within statutory window.
+3. AFP measured-work lines blocked unless corresponding ITP signed off in QA module.
+4. AFP gross reconciles to sum of components within £0.01.
+5. Statutory dates calculated correctly under the Construction Act 1996 and the Scheme for Construction Contracts.
+
+### F5 — Subcontract administration
+
+1. Subcontractor application processed end-to-end with CIS deduction at correct rate.
+2. HMRC CIS verification API integrated (or fallback manual entry with audit).
+3. Reverse Charge VAT correctly applied for in-scope services and traders.
+4. Retention tracked through PC and DLP, with release events triggered.
+5. Final account reconciles to budget + approved changes within agreed tolerance.
+
+### F6 — Cash flow
+
+1. S-curve generated from cost-loaded schedule + commitments + payment terms.
+2. Actual vs. plan variance reported monthly.
+3. Re-forecast produces a new S-curve, with variance against the prior baseline.
+
+### F7 — CVR
+
+1. Monthly CVR pack produced with EV, AV, accruals, provisions, forecast final cost.
+2. CVR reconciles to F4 valuations and F2 commitments.
+3. Risk and opportunity register integrates with CVR provisions.
+
+### F8 — GL integration
+
+1. Xero connection passes posting and reconciliation tests on a 100-transaction dummy set.
+2. Sage 50 / 200 connection passes same tests.
+3. QuickBooks connection passes same tests.
+4. Two-way bank reconciliation: GL transactions match payment certificates within £0.01 tolerance.
+5. Mapping errors logged and surfaced to the user, never silently dropped.
+
+### F9 — Reporting
+
+1. Standard cost report runs in under five seconds for a project with 500 cost codes.
+2. Custom dashboard builder available.
+3. Export to PDF, Excel, and RICS-compatible formats.
+
+---
+
+## 9. Open architectural decisions
+
+Decisions cascade into the SDP and into individual ADRs. Each is a one-page decision document in its own right.
+
+| ID | Decision | Sprint deadline | ADR |
+|---|---|---|---|
+| OAD-1 | Identity and SSO strategy (Azure AD B2C / IdentityServer / Auth0) — and whether tokens issued by CIMS are honoured directly by spokes or whether spokes validate independently against the same identity provider | Sprint 0 | ADR-0003 |
+| OAD-2 | Event-bus technology — lightweight built-in (outbox + HTTP webhooks), managed broker (Azure Service Bus, AWS SNS/SQS), or self-hosted (RabbitMQ) | Sprint 0 | ADR-0002 |
+| OAD-3 | Multi-tenancy strategy — separate database per tenant per product, or shared database with tenant ID | Sprint 0 | ADR-0004 |
+| OAD-4 | Hosting and data residency — particularly UK-resident storage for HRB projects, and offline-capable handover | Sprint 0 | ADR-0005 |
+| OAD-5 | Money handling and multi-currency policy — `decimal(19,4)` confirmed; multi-currency rules to be specified | Sprint 0 | ADR-0006 |
+| OAD-6 | HMRC CIS API access strategy — pursue official integration or accept manual verification with audit | Before F5 | ADR-TBC |
+| OAD-7 | Open Banking integration for live cash position and automated reconciliation | Before F8 | ADR-TBC |
+
+---
+
+## 10. Out of scope of this plan
+
+These are deliberate exclusions. Each will be re-evaluated only when triggered by a separate decision.
+
+- **Revit one-click cascade.** A separate future application that consumes the four products' APIs in the same hub-and-spoke pattern. Treated as a fifth product, not a feature of any of the four.
+- **Native BIM viewer or model coordination.** Embedded via Speckle, Autodesk APS, xeokit / web-ifc, or BCF only. Building this in-house is a multi-year specialist engineering effort that would consume the entire roadmap.
+- **Replacing the customer's general ledger.** F8 integrates with Xero, Sage, QuickBooks; the GL stays where the customer's accounting team already runs it.
+- **Mobile field app with full offline capability.** A scoped PWA for snagging and permits-to-work capture is on the post-MVP backlog. Full mobile parity is not.
+- **Resource management, equipment management, T&M.** Out of scope for v1; potential post-Phase 2.
+
+---
+
+## 11. Sequencing summary
+
+The Sprint plan in [`CLAUDE.md`](../CLAUDE.md) §5 implements this scope in roughly two-week sprints. Indicative order:
+
+- Sprint 0 — Bootstrap (solution scaffold, CI, no business logic)
+- Sprint 1 — F0 vertical slice (Project Setup, end-to-end)
+- Sprint 2 — F0 complete
+- Sprints 3–4 — F1
+- Sprints 5–6 — F2
+- Sprints 7–9 — F3
+- Sprints 10–12 — F4
+- Sprints 13–14 — F5
+- Sprint 15 — F6
+- Sprint 16 — F7
+- Sprints 17–18 — F8
+- Sprint 19 — F9
+
+Sprint count is indicative. Some sprints will split, some will merge. The order is **not negotiable** — F3 cannot start before F2; F4 cannot start before F3 and the QA module is reachable.
+
+---
+
+## 12. Revision history
+
+| Version | Date | Change |
+|---|---|---|
+| 0.1 | 2026-05-07 | Initial plan: four-module architecture, CIMS as hub, F0–F9 sub-modules with passing criteria |
+| 0.2 | 2026-05-07 | Confirmed: each module has its own database; communication flows through CIMS as broker, not peer-to-peer; one-click Revit cascade scoped out as future separate application |
+
+---
+
+*Living document. Update on every architectural decision. Next review at end of Sprint 0.*
