@@ -61,6 +61,15 @@ internal sealed class ProjectCommercialConfigurationConfiguration
                 .HasColumnName("PaymentDueDayOfMonth");
         });
 
+        builder.OwnsOne(x => x.OverCommitmentGuard, guard =>
+        {
+            guard.Property(g => g.Mode)
+                .HasColumnName("OverCommitmentGuardMode")
+                .HasConversion<int>()
+                .IsRequired();
+        });
+        builder.Navigation(x => x.OverCommitmentGuard).IsRequired();
+
         builder.Property(x => x.RowVersion)
             .IsRowVersion()
             .IsConcurrencyToken();
