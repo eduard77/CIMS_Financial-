@@ -1,7 +1,9 @@
 using System.Globalization;
 using Financials.Application;
 using Financials.Infrastructure;
+using Financials.Web.Auth;
 using Financials.Web.Components;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using MudBlazor.Services;
 using Serilog;
 
@@ -12,7 +14,7 @@ Log.Logger = new LoggerConfiguration()
 
 try
 {
-    Log.Information("Starting Financials.Web (Sprint 0 bootstrap)");
+    Log.Information("Starting Financials.Web (Sprint 1 vertical slice)");
 
     var builder = WebApplication.CreateBuilder(args);
 
@@ -37,6 +39,57 @@ try
             "user-secrets, or the FINANCIALS_DB_CONNECTION environment variable.");
     builder.Services.AddInfrastructure(connectionString, builder.Configuration);
 
+    // ADR-0003 — CIMS-issued JWT validated locally via OIDC discovery.
+    var authority = builder.Configuration["Cims:Auth:Authority"]
+        ?? throw new InvalidOperationException("Cims:Auth:Authority is required (ADR-0003).");
+    var audience = builder.Configuration["Cims:Auth:Audience"]
+        ?? throw new InvalidOperationException("Cims:Auth:Audience is required (ADR-0003).");
+
+    builder.Services
+        .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddJwtBearer(options =>
+        {
+            options.Authority = authority;
+            options.Audience = audience;
+            options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
+            options.MapInboundClaims = false;
+            options.TokenValidationParameters.ClockSkew = TimeSpan.FromSeconds(30);
+            options.TokenValidationParameters.NameClaimType = "name";
+
+            // Blazor Server WebSocket auth — surface the access_token from the
+            // negotiate query string when SignalR upgrades the connection.
+            options.Events = new JwtBearerEvents
+            {
+                OnMessageReceived = context =>
+                {
+                    var accessToken = context.Request.Query["access_token"];
+                    var path = context.HttpContext.Request.Path;
+                    if (!string.IsNullOrEmpty(accessToken)
+                        && path.StartsWithSegments("/_blazor", StringComparison.OrdinalIgnoreCase))
+                    {
+                        context.Token = accessToken;
+                    }
+
+                    return Task.CompletedTask;
+                },
+            };
+        });
+
+    builder.Services.AddAuthorization(options =>
+    {
+        options.AddPolicy(
+            AuthorizationPolicies.ProjectsConfirm,
+            policy => policy
+                .RequireAuthenticatedUser()
+                .RequireClaim("permissions", AuthorizationPolicies.ProjectsConfirm));
+
+        options.AddPolicy(
+            AuthorizationPolicies.ProjectsRead,
+            policy => policy
+                .RequireAuthenticatedUser()
+                .RequireClaim("permissions", AuthorizationPolicies.ProjectsRead));
+    });
+
     var app = builder.Build();
 
     if (!app.Environment.IsDevelopment())
@@ -50,6 +103,9 @@ try
     app.UseAntiforgery();
 
     app.UseSerilogRequestLogging();
+
+    app.UseAuthentication();
+    app.UseAuthorization();
 
     app.MapHealthChecks("/health");
 

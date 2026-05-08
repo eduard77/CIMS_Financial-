@@ -10,7 +10,6 @@ using Financials.Infrastructure.Projects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Polly;
 using Polly.Extensions.Http;
@@ -28,7 +27,8 @@ public static class InfrastructureServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(configuration);
 
         services.AddSingleton<IClock, SystemClock>();
-        services.TryAddScoped<ICurrentUserService, AnonymousCurrentUserService>();
+        services.AddScoped<ICurrentUserService, HttpContextCurrentUserService>();
+        services.AddScoped<IPermissionService, ClaimsPermissionService>();
         services.AddScoped<AuditingSaveChangesInterceptor>();
 
         services.AddDbContext<FinancialsDbContext>((sp, options) =>

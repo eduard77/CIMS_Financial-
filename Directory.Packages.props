@@ -9,6 +9,10 @@
     <PackageVersion Include="MudBlazor" Version="7.15.0" />
   </ItemGroup>
 
+  <ItemGroup Label="Auth">
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.10" />
+  </ItemGroup>
+
   <ItemGroup Label="Microsoft.Extensions (.NET 8 LTS)">
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
