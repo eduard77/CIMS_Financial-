@@ -1,0 +1,356 @@
+@page "/projects/{financialsProjectId:guid}/budget"
+@attribute [Authorize(Policy = AuthorizationPolicies.BudgetRead)]
+@inject IMediator Mediator
+@inject ICimsClient Cims
+@inject IPermissionService Permissions
+@inject ISnackbar Snackbar
+@rendermode InteractiveServer
+
+<PageTitle>Budget &mdash; Financials</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
+    <MudText Typo="Typo.h4" GutterBottom="true">Budget</MudText>
+
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+    }
+    else if (_loadError is not null)
+    {
+        <MudAlert Severity="Severity.Error">@_loadError</MudAlert>
+    }
+    else if (_budget is null)
+    {
+        <MudPaper Class="pa-6" Elevation="1">
+            <MudText Typo="Typo.body1" Class="mb-3">No budget exists for this project yet.</MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       OnClick="CreateBudgetAsync"
+                       Disabled="@(!_canWrite || _busy)"
+                       StartIcon="@Icons.Material.Filled.Add">
+                Create budget
+            </MudButton>
+        </MudPaper>
+    }
+    else
+    {
+        <MudPaper Class="pa-4 mb-4" Elevation="1">
+            <MudText Typo="Typo.subtitle1">
+                Currency: <b>@_budget.Currency</b> &nbsp;&middot;&nbsp;
+                Revisions: <b>@_budget.Revisions.Count</b>
+            </MudText>
+            @if (_currentDraft is null && _canWrite)
+            {
+                <MudTextField @bind-Value="_newRevisionReason" Label="Reason" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mt-3 mb-3" />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                           OnClick="OpenRevisionAsync"
+                           Disabled="@(string.IsNullOrWhiteSpace(_newRevisionReason) || _busy)"
+                           StartIcon="@Icons.Material.Filled.PlaylistAdd">
+                    Open new revision
+                </MudButton>
+            }
+        </MudPaper>
+
+        @if (_currentDraft is not null)
+        {
+            <MudPaper Class="pa-4 mb-4" Elevation="1">
+                <MudText Typo="Typo.h6">Draft revision @_currentDraft.RevisionNumber — @_currentDraft.Reason</MudText>
+                <MudText Typo="Typo.subtitle2" Class="mt-2">Add line</MudText>
+                <MudGrid>
+                    <MudItem xs="12" md="2">
+                        <MudNumericField T="int" @bind-Value="_lineForm.LineNumber" Label="Line #" Min="1" />
+                    </MudItem>
+                    <MudItem xs="12" md="3">
+                        <MudSelect T="Guid?" @bind-Value="_lineForm.CimsCostCodeId" Label="Cost code" Dense="true">
+                            @foreach (var node in _costCodes ?? Array.Empty<CostCodeNode>())
+                            {
+                                <MudSelectItem T="Guid?" Value="node.Id">@($"{node.Code} — {node.Description}")</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" md="3">
+                        <MudTextField @bind-Value="_lineForm.Description" Label="Description" />
+                    </MudItem>
+                    <MudItem xs="6" md="1">
+                        <MudNumericField T="decimal" @bind-Value="_lineForm.Quantity" Label="Qty" Min="0" Format="N2" Culture="@_uk" />
+                    </MudItem>
+                    <MudItem xs="6" md="1">
+                        <MudTextField @bind-Value="_lineForm.UnitOfMeasure" Label="Unit" />
+                    </MudItem>
+                    <MudItem xs="6" md="1">
+                        <MudNumericField T="decimal" @bind-Value="_lineForm.UnitRate" Label="Rate" Min="0" Format="N2" Culture="@_uk" />
+                    </MudItem>
+                    <MudItem xs="6" md="1">
+                        <MudTextField @bind-Value="_lineForm.WorkPackage" Label="Package" />
+                    </MudItem>
+                </MudGrid>
+                @if (_lineError is not null)
+                {
+                    <MudAlert Severity="Severity.Error" Class="mt-2">@_lineError</MudAlert>
+                }
+                <MudButton Class="mt-3" Variant="Variant.Filled" Color="Color.Primary"
+                           OnClick="AddLineAsync"
+                           Disabled="@(!CanAddLine() || _busy)"
+                           StartIcon="@Icons.Material.Filled.Add">
+                    Add line
+                </MudButton>
+            </MudPaper>
+        }
+
+        @foreach (var rev in _budget.Revisions.OrderByDescending(r => r.RevisionNumber))
+        {
+            <MudPaper Class="pa-4 mb-3" Elevation="1">
+                <MudText Typo="Typo.h6">
+                    Revision @rev.RevisionNumber — @rev.Status
+                    <MudText Typo="Typo.caption" Inline="true">@rev.Reason</MudText>
+                </MudText>
+                <MudText Typo="Typo.body2">Total: <b>@rev.TotalAmount.ToString("N2", _uk) @_budget.Currency</b> &middot; Lines: @rev.Lines.Count</MudText>
+                @if (rev.Status == "Draft" && rev.Lines.Count > 0 && _canApprove)
+                {
+                    <MudButton Class="mt-2" Variant="Variant.Outlined" Color="Color.Success"
+                               OnClick="@(() => ApproveAsync(rev.Id))"
+                               Disabled="@_busy"
+                               StartIcon="@Icons.Material.Filled.Check">
+                        Approve revision
+                    </MudButton>
+                }
+                @if (rev.Lines.Count > 0)
+                {
+                    <MudSimpleTable Dense="true" Striped="true" Class="mt-3">
+                        <thead>
+                            <tr>
+                                <th>#</th><th>Cost code</th><th>Description</th>
+                                <th class="text-right">Qty</th><th>Unit</th>
+                                <th class="text-right">Rate</th><th class="text-right">Amount</th>
+                                <th>Package</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var line in rev.Lines.OrderBy(l => l.LineNumber))
+                        {
+                            <tr>
+                                <td>@line.LineNumber</td>
+                                <td>@CostCodeLabel(line.CimsCostCodeId)</td>
+                                <td>@line.Description</td>
+                                <td class="text-right">@line.Quantity.ToString("N2", _uk)</td>
+                                <td>@line.UnitOfMeasure</td>
+                                <td class="text-right">@line.UnitRate.ToString("N2", _uk)</td>
+                                <td class="text-right">@line.Amount.ToString("N2", _uk)</td>
+                                <td>@line.WorkPackage</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </MudSimpleTable>
+                }
+            </MudPaper>
+        }
+
+        @if (_rollup is not null && _rollup.ByCostCode.Count > 0)
+        {
+            <MudPaper Class="pa-4 mb-3" Elevation="1">
+                <MudText Typo="Typo.h6">Rollup — revision @_rollup.RevisionNumber (@_rollup.RevisionStatus)</MudText>
+                <MudText Typo="Typo.body2">Total: <b>@_rollup.Total.ToString("N2", _uk) @_rollup.Currency</b></MudText>
+                <MudGrid Class="mt-2">
+                    <MudItem xs="12" md="6">
+                        <MudText Typo="Typo.subtitle2">By cost code</MudText>
+                        <MudSimpleTable Dense="true">
+                            <thead><tr><th>Cost code</th><th class="text-right">Lines</th><th class="text-right">Total</th></tr></thead>
+                            <tbody>
+                                @foreach (var g in _rollup.ByCostCode)
+                                {
+                                    <tr>
+                                        <td>@CostCodeLabel(Guid.Parse(g.Key))</td>
+                                        <td class="text-right">@g.LineCount</td>
+                                        <td class="text-right">@g.Total.ToString("N2", _uk)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </MudSimpleTable>
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudText Typo="Typo.subtitle2">By work package</MudText>
+                        <MudSimpleTable Dense="true">
+                            <thead><tr><th>Package</th><th class="text-right">Lines</th><th class="text-right">Total</th></tr></thead>
+                            <tbody>
+                                @foreach (var g in _rollup.ByWorkPackage)
+                                {
+                                    <tr>
+                                        <td>@g.Key</td>
+                                        <td class="text-right">@g.LineCount</td>
+                                        <td class="text-right">@g.Total.ToString("N2", _uk)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </MudSimpleTable>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+        }
+    }
+</MudContainer>
+
+@code {
+    [Parameter] public Guid FinancialsProjectId { get; set; }
+
+    private readonly CultureInfo _uk = CultureInfo.GetCultureInfo("en-GB");
+
+    private bool _loading = true;
+    private string? _loadError;
+    private bool _busy;
+
+    private bool _canWrite;
+    private bool _canApprove;
+
+    private BudgetDto? _budget;
+    private BudgetRevisionDto? _currentDraft;
+    private BudgetRollupDto? _rollup;
+    private string _newRevisionReason = string.Empty;
+
+    private IReadOnlyList<CostCodeNode>? _costCodes;
+    private LineForm _lineForm = new();
+    private string? _lineError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _canWrite = Permissions.Has(AuthorizationPolicies.BudgetWrite);
+        _canApprove = Permissions.Has(AuthorizationPolicies.BudgetApprove);
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _loadError = null;
+
+        var budgetResult = await Mediator.Send(new GetBudgetQuery(FinancialsProjectId));
+        if (budgetResult.IsFailure)
+        {
+            _loadError = budgetResult.Error;
+            _loading = false;
+            return;
+        }
+        _budget = budgetResult.Value;
+        _currentDraft = _budget?.Revisions.FirstOrDefault(r => r.Status == "Draft");
+
+        var rollupResult = await Mediator.Send(new GetBudgetRollupQuery(FinancialsProjectId));
+        _rollup = rollupResult.IsSuccess ? rollupResult.Value : null;
+
+        if (_costCodes is null)
+        {
+            try
+            {
+                _costCodes = await Cims.GetProjectCostCodesAsync(FinancialsProjectId);
+            }
+            catch (HttpRequestException)
+            {
+                _costCodes = Array.Empty<CostCodeNode>();
+            }
+        }
+
+        _loading = false;
+    }
+
+    private async Task CreateBudgetAsync()
+    {
+        _busy = true;
+        var result = await Mediator.Send(new CreateBudgetCommand(FinancialsProjectId));
+        _busy = false;
+        if (result.IsSuccess)
+        {
+            Snackbar.Add("Budget created.", MudBlazor.Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            _loadError = result.Error;
+        }
+    }
+
+    private async Task OpenRevisionAsync()
+    {
+        if (_budget is null) return;
+        _busy = true;
+        var result = await Mediator.Send(new OpenBudgetRevisionCommand(_budget.Id, _newRevisionReason));
+        _busy = false;
+        if (result.IsSuccess)
+        {
+            _newRevisionReason = string.Empty;
+            await LoadAsync();
+        }
+        else
+        {
+            _loadError = result.Error;
+        }
+    }
+
+    private bool CanAddLine() =>
+        _canWrite
+        && _currentDraft is not null
+        && _lineForm.LineNumber > 0
+        && _lineForm.CimsCostCodeId is { }
+        && !string.IsNullOrWhiteSpace(_lineForm.Description)
+        && !string.IsNullOrWhiteSpace(_lineForm.UnitOfMeasure);
+
+    private async Task AddLineAsync()
+    {
+        if (_budget is null || _currentDraft is null || _lineForm.CimsCostCodeId is null) return;
+        _busy = true;
+        _lineError = null;
+
+        var result = await Mediator.Send(new AddBudgetLineCommand(
+            BudgetId: _budget.Id,
+            BudgetRevisionId: _currentDraft.Id,
+            LineNumber: _lineForm.LineNumber,
+            CimsCostCodeId: _lineForm.CimsCostCodeId.Value,
+            Description: _lineForm.Description,
+            Quantity: _lineForm.Quantity,
+            UnitOfMeasure: _lineForm.UnitOfMeasure,
+            UnitRateAmount: _lineForm.UnitRate,
+            WorkPackage: string.IsNullOrWhiteSpace(_lineForm.WorkPackage) ? null : _lineForm.WorkPackage,
+            ActivityId: null));
+        _busy = false;
+        if (result.IsSuccess)
+        {
+            _lineForm = new LineForm { LineNumber = _lineForm.LineNumber + 1 };
+            await LoadAsync();
+        }
+        else
+        {
+            _lineError = result.Error;
+        }
+    }
+
+    private async Task ApproveAsync(Guid revisionId)
+    {
+        if (_budget is null) return;
+        _busy = true;
+        var result = await Mediator.Send(new ApproveBudgetRevisionCommand(_budget.Id, revisionId));
+        _busy = false;
+        if (result.IsSuccess)
+        {
+            Snackbar.Add("Revision approved.", MudBlazor.Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            _loadError = result.Error;
+        }
+    }
+
+    private string CostCodeLabel(Guid id)
+    {
+        var node = _costCodes?.FirstOrDefault(c => c.Id == id);
+        return node is null ? id.ToString()[..8] : $"{node.Code} — {node.Description}";
+    }
+
+    private sealed class LineForm
+    {
+        public int LineNumber { get; set; } = 1;
+        public Guid? CimsCostCodeId { get; set; }
+        public string Description { get; set; } = string.Empty;
+        public decimal Quantity { get; set; }
+        public string UnitOfMeasure { get; set; } = string.Empty;
+        public decimal UnitRate { get; set; }
+        public string? WorkPackage { get; set; }
+    }
+}
