@@ -44,11 +44,11 @@ Deferred to Sprint 1 (with reason):
 
 Touches every layer once: auth, DB, CIMS API call, MediatR command + query, MudBlazor UI, all three test rings.
 
-Pre-requisite ADRs (write before starting):
+Pre-requisite ADRs (accepted before any Sprint 1 code):
 
-- **ADR-0002** — CIMS HTTP transport: Refit vs typed `HttpClient`. CLAUDE.md §3 says pick one and use it consistently; Sprint 0 deferred the choice.
-- **ADR-0003** — Identity for Sprint 1. Plan v0.2 expects CIMS-issued JWT validated locally. Confirm the issuer, audience, signing-key rotation policy.
-- **ADR-0004** — Audit interceptor + `IAuditable` design.
+- **ADR-0002** — CIMS HTTP transport: typed `HttpClient` with Polly retry, bearer-forwarding handler, and 60s `IMemoryCache` for read-heavy lookups. ([0002](./decisions/0002-cims-http-transport.md))
+- **ADR-0003** — Identity: CIMS-issued JWT validated locally via OIDC discovery. Authority `https://auth.genera-systems.com`, audience `financials`. ([0003](./decisions/0003-identity-cims-issued-jwt.md))
+- **ADR-0004** — Audit: `IAuditable` interface in `Domain.Common` + `AuditingSaveChangesInterceptor` driven by `IClock` and `ICurrentUserService`. ([0004](./decisions/0004-audit-interceptor-and-iauditable.md))
 
 Done when:
 
@@ -93,8 +93,8 @@ Items here block no work in the current sprint, but need a call before they affe
 | ADR | Title | Status |
 |---|---|---|
 | 0001 | Hub-and-spoke architecture with CIMS as integration broker | Accepted |
-| 0002 | CIMS HTTP transport (Refit vs typed HttpClient) | Pending — Sprint 1 |
-| 0003 | Identity provider for spoke products | Pending — Sprint 1 |
-| 0004 | Audit interceptor and IAuditable design | Pending — Sprint 1 |
+| 0002 | CIMS HTTP transport — typed HttpClient | Accepted |
+| 0003 | Identity — CIMS-issued JWT, validated locally via OIDC discovery | Accepted |
+| 0004 | Audit interceptor and IAuditable interface | Accepted |
 
 ADRs live in [`docs/decisions/`](./decisions/). Use [`0000-template.md`](./decisions/0000-template.md).
