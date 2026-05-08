@@ -1,10 +1,12 @@
 using Financials.Application.Cims;
 using Financials.Application.Common;
 using Financials.Application.Persistence;
+using Financials.Application.Projects;
 using Financials.Infrastructure.Cims;
 using Financials.Infrastructure.Common;
 using Financials.Infrastructure.HealthChecks;
 using Financials.Infrastructure.Persistence;
+using Financials.Infrastructure.Projects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -30,6 +32,7 @@ public static class InfrastructureServiceCollectionExtensions
                 .AddInterceptors(sp.GetRequiredService<AuditingSaveChangesInterceptor>()));
 
         services.AddScoped<IFinancialsDbContext>(sp => sp.GetRequiredService<FinancialsDbContext>());
+        services.AddScoped<IFinancialsProjectRepository, FinancialsProjectRepository>();
 
         // Pattern A — Synchronous lookup. Sprint 0 stub; Sprint 1 replaces with
         // the real HTTP transport (ADR-0002).

@@ -28,3 +28,10 @@ csharp_using_directive_placement = outside_namespace:warning
 dotnet_diagnostic.CS8602.severity = warning   # dereference of a possibly null reference
 dotnet_diagnostic.CS8618.severity = warning   # non-nullable not initialised
 dotnet_diagnostic.CA2007.severity = none      # ConfigureAwait — not needed in ASP.NET Core
+
+# EF Core generates migration files; relax analyser noise scoped to that folder.
+# CA1062 (null guards) — migrations are only ever invoked by EF with a real builder.
+# CA1707 (no underscores) — InitialCreate / AddFinancialsProjects names follow EF convention.
+[**/Persistence/Migrations/*.cs]
+dotnet_diagnostic.CA1062.severity = none
+dotnet_diagnostic.CA1707.severity = none
