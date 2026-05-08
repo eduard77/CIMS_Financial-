@@ -35,3 +35,4 @@ dotnet_diagnostic.CA2007.severity = none      # ConfigureAwait — not needed in
 [**/Persistence/Migrations/*.cs]
 dotnet_diagnostic.CA1062.severity = none
 dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.CA1861.severity = none

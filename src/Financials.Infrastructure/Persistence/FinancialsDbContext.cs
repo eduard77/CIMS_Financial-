@@ -1,4 +1,5 @@
 using Financials.Application.Persistence;
+using Financials.Domain.Budgets;
 using Financials.Domain.Projects;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,6 +18,8 @@ public class FinancialsDbContext : DbContext, IFinancialsDbContext
 
     public DbSet<ProjectCommercialConfiguration> ProjectCommercialConfigurations
         => Set<ProjectCommercialConfiguration>();
+
+    public DbSet<Budget> Budgets => Set<Budget>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
