@@ -47,6 +47,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IProjectCommercialConfigurationRepository, ProjectCommercialConfigurationRepository>();
         services.AddScoped<IBudgetRepository, BudgetRepository>();
         services.AddScoped<ICommitmentRepository, CommitmentRepository>();
+        services.AddScoped<ICommitmentInsuranceRepository, CommitmentInsuranceRepository>();
 
         services.AddCimsClient(configuration);
 
