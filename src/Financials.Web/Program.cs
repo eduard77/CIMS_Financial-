@@ -1,5 +1,6 @@
 using System.Globalization;
 using Financials.Application;
+using Financials.Infrastructure;
 using Financials.Web.Components;
 using MudBlazor.Services;
 using Serilog;
@@ -29,6 +30,12 @@ try
     builder.Services.AddMudServices();
 
     builder.Services.AddApplication();
+
+    var connectionString = builder.Configuration.GetConnectionString("FinancialsDb")
+        ?? throw new InvalidOperationException(
+            "Missing connection string 'FinancialsDb'. Configure via appsettings.json, " +
+            "user-secrets, or the FINANCIALS_DB_CONNECTION environment variable.");
+    builder.Services.AddInfrastructure(connectionString);
 
     var app = builder.Build();
 
