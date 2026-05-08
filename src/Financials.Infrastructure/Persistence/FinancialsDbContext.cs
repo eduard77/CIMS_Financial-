@@ -1,4 +1,5 @@
 using Financials.Application.Persistence;
+using Financials.Domain.Projects;
 using Microsoft.EntityFrameworkCore;
 
 namespace Financials.Infrastructure.Persistence;
@@ -11,6 +12,8 @@ public class FinancialsDbContext : DbContext, IFinancialsDbContext
         : base(options)
     {
     }
+
+    public DbSet<FinancialsProject> FinancialsProjects => Set<FinancialsProject>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

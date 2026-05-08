@@ -7,8 +7,13 @@
       Test method naming intentionally uses snake_case (e.g., Method_does_thing).
       CA1707 is correct for production code but conflicts with widely-used
       xUnit naming conventions in test projects.
+
+      CA2000 (dispose of locals) is silenced in tests because xUnit garbage
+      collection is sufficient for short-lived HttpClients, MemoryCaches, and
+      DelegatingHandlers; adding `using` declarations everywhere obscures the
+      arrange/act/assert flow without buying anything in a test process.
     -->
-    <NoWarn>$(NoWarn);CA1707</NoWarn>
+    <NoWarn>$(NoWarn);CA1707;CA2000;CA1861;CA1034</NoWarn>
   </PropertyGroup>
 
 </Project>

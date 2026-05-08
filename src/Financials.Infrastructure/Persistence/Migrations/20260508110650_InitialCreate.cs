@@ -10,16 +10,12 @@ namespace Financials.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            ArgumentNullException.ThrowIfNull(migrationBuilder);
-
             migrationBuilder.EnsureSchema(name: "fin");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            ArgumentNullException.ThrowIfNull(migrationBuilder);
-
             migrationBuilder.Sql("DROP SCHEMA IF EXISTS [fin]");
         }
     }

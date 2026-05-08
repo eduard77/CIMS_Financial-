@@ -2,7 +2,7 @@
 
 Commercial management for UK construction. One of four independent products that together form the Genera Systems platform.
 
-> **Status:** Sprint 0 complete — bootstrap. Solution builds clean, unit ring green, "Hello, Financials" page served through MudBlazor, `/health` endpoint live. No product features yet.
+> **Status:** Sprint 1 — F0 vertical slice (Project Setup). A logged-in user can pick a CIMS project, confirm it for Financials, and see the confirmed list. Real Pattern A `CimsClient` (typed `HttpClient` + Polly + 60s cache + bearer forwarding) per ADR-0002; CIMS-issued JWT validated locally via OIDC discovery per ADR-0003; audit columns stamped by interceptor per ADR-0004.
 > See [docs/sprint-plan.md](./docs/sprint-plan.md) for current sprint and roadmap.
 
 ---
@@ -71,9 +71,23 @@ dotnet ef database update --project src/Financials.Infrastructure --startup-proj
 dotnet run --project src/Financials.Web
 ```
 
-Then open `https://localhost:5001`.
+Then open `https://localhost:5001`. The home page (`/`) is anonymous; `/projects` and `/projects/confirm` require an authenticated user with the `financials.projects.read` and `financials.projects.confirm` permissions respectively.
 
-Configuration is read from `appsettings.json` and overridden by `appsettings.Development.json` (gitignored). User secrets (connection strings, CIMS credentials) live in `dotnet user-secrets`.
+### Required configuration
+
+Set in `appsettings.Development.json` (gitignored) or `dotnet user-secrets`:
+
+| Key | Default in `appsettings.json` | What it is |
+|---|---|---|
+| `ConnectionStrings:FinancialsDb` | LocalDB `Financials` database | EF Core connection string |
+| `Cims:BaseAddress` | `https://cims.genera-systems.com/` | Pattern A base URL (ADR-0002) |
+| `Cims:CacheTtl` | `00:01:00` | `IMemoryCache` TTL for read-heavy lookups |
+| `Cims:TotalTimeout` | `00:00:30` | `HttpClient.Timeout` (covers retries) |
+| `Cims:RetryCount` | `3` | Polly retry attempts |
+| `Cims:Auth:Authority` | `https://auth.genera-systems.com` | OIDC authority for JWT validation (ADR-0003) |
+| `Cims:Auth:Audience` | `financials` | Required `aud` claim |
+
+In Development, `RequireHttpsMetadata=false` so an HTTP authority works for local testing. In any other environment, the authority must be HTTPS-reachable (with OIDC discovery enabled at `{authority}/.well-known/openid-configuration`).
 
 ### Running tests
 
@@ -154,7 +168,8 @@ Defined fully in [CLAUDE.md §11](./CLAUDE.md). In summary: passing criteria fro
 - **EF Core 8** with code-first migrations against **SQL Server 2019+**.
 - **MediatR** for CQRS, **FluentValidation** for input validation.
 - **Serilog** for logging. **xUnit + FluentAssertions + NSubstitute + Testcontainers** for tests.
-- **Refit** or typed `HttpClient` for the CIMS client.
+- **Typed `HttpClient`** for the CIMS client (ADR-0002), with **Polly** retry and **`IMemoryCache`** for read-heavy lookups.
+- **`Microsoft.AspNetCore.Authentication.JwtBearer`** for CIMS-issued JWT validation via OIDC discovery (ADR-0003).
 
 New top-level dependencies require an ADR. See [CLAUDE.md §3](./CLAUDE.md).
 
@@ -203,4 +218,4 @@ Issues, security reports, and commercial enquiries: see CONTACT.md (when publish
 
 ---
 
-*This README reflects the repository as of Sprint 0 bootstrap (complete). Updated each sprint with anything a new contributor or future Claude Code session needs to know on day one.*
+*This README reflects the repository as of Sprint 1 (F0 Project Setup vertical slice). Updated each sprint with anything a new contributor or future Claude Code session needs to know on day one.*

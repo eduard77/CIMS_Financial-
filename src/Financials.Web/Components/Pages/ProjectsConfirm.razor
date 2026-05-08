@@ -1,0 +1,108 @@
+@page "/projects/confirm"
+@attribute [Authorize(Policy = AuthorizationPolicies.ProjectsConfirm)]
+@inject IMediator Mediator
+@inject ICimsClient Cims
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+@rendermode InteractiveServer
+
+<PageTitle>Confirm a CIMS project &mdash; Financials</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-8">
+    <MudText Typo="Typo.h4" GutterBottom="true">Confirm a CIMS project</MudText>
+    <MudText Typo="Typo.body2" Class="mb-4">
+        Bring an existing CIMS project into Financials scope. The project itself
+        stays owned by CIMS; Financials only records that it is in scope locally.
+    </MudText>
+
+    @if (_loadError is not null)
+    {
+        <MudAlert Severity="Severity.Error" Class="my-4">@_loadError</MudAlert>
+    }
+    else if (_loadingProjects)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+    }
+    else if (_cimsProjects is { Count: 0 })
+    {
+        <MudAlert Severity="Severity.Info" Class="my-4">CIMS returned no projects.</MudAlert>
+    }
+    else
+    {
+        <MudPaper Class="pa-6" Elevation="1">
+            <MudSelect T="Guid?" @bind-Value="_selectedProjectId" Label="CIMS project" Variant="Variant.Outlined" Dense="true">
+                @foreach (var project in _cimsProjects!)
+                {
+                    <MudSelectItem T="Guid?" Value="project.Id">
+                        @($"{project.Reference} — {project.Name}")
+                    </MudSelectItem>
+                }
+            </MudSelect>
+
+            @if (_submitError is not null)
+            {
+                <MudAlert Severity="Severity.Error" Class="mt-4">@_submitError</MudAlert>
+            }
+
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       Class="mt-4"
+                       OnClick="ConfirmAsync"
+                       Disabled="@(_selectedProjectId is null || _submitting)"
+                       StartIcon="@Icons.Material.Filled.Check">
+                @(_submitting ? "Confirming…" : "Confirm")
+            </MudButton>
+        </MudPaper>
+    }
+</MudContainer>
+
+@code {
+    private bool _loadingProjects = true;
+    private string? _loadError;
+    private IReadOnlyList<CimsProjectSummary>? _cimsProjects;
+
+    private Guid? _selectedProjectId;
+    private bool _submitting;
+    private string? _submitError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _cimsProjects = await Cims.ListProjectsAsync();
+        }
+        catch (HttpRequestException)
+        {
+            _loadError = "CIMS is currently unavailable. Try again in a moment.";
+        }
+        finally
+        {
+            _loadingProjects = false;
+        }
+    }
+
+    private async Task ConfirmAsync()
+    {
+        if (_selectedProjectId is null)
+        {
+            return;
+        }
+
+        _submitting = true;
+        _submitError = null;
+
+        var result = await Mediator.Send(new ConfirmCimsProjectCommand(_selectedProjectId.Value));
+
+        _submitting = false;
+
+        if (result.IsSuccess)
+        {
+            Snackbar.Add("Project confirmed for Financials.", MudBlazor.Severity.Success);
+            Nav.NavigateTo("/projects");
+        }
+        else
+        {
+            _submitError = result.Error;
+        }
+    }
+}

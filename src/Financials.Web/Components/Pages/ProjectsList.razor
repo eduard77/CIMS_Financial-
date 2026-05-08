@@ -1,0 +1,60 @@
+@page "/projects"
+@attribute [Authorize(Policy = AuthorizationPolicies.ProjectsRead)]
+@inject IMediator Mediator
+@rendermode InteractiveServer
+
+<PageTitle>Confirmed projects &mdash; Financials</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
+    <MudText Typo="Typo.h4" GutterBottom="true">Confirmed projects</MudText>
+    <MudText Typo="Typo.body2" Class="mb-4">
+        Projects from CIMS that have been brought into Financials scope.
+        Names and references resolve from CIMS at read time.
+    </MudText>
+
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+    }
+    else if (_error is not null)
+    {
+        <MudAlert Severity="Severity.Error" Class="my-4">@_error</MudAlert>
+    }
+    else if (_projects is { Count: 0 })
+    {
+        <MudAlert Severity="Severity.Info" Class="my-4">
+            No projects confirmed yet. Use <MudLink Href="/projects/confirm">Confirm</MudLink> to add one.
+        </MudAlert>
+    }
+    else
+    {
+        <MudDataGrid T="ConfirmedProjectDto" Items="@_projects" Dense="true" Hover="true">
+            <Columns>
+                <PropertyColumn Property="x => x.CimsProjectReference" Title="Reference" />
+                <PropertyColumn Property="x => x.CimsProjectName" Title="Name" />
+                <PropertyColumn Property="x => x.ConfirmedAt" Title="Confirmed at" Format="dd/MM/yyyy HH:mm" />
+                <PropertyColumn Property="x => x.ConfirmedByUserId" Title="Confirmed by" />
+            </Columns>
+        </MudDataGrid>
+    }
+</MudContainer>
+
+@code {
+    private bool _loading = true;
+    private string? _error;
+    private IReadOnlyList<ConfirmedProjectDto>? _projects;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var result = await Mediator.Send(new ListConfirmedProjectsQuery());
+        if (result.IsSuccess)
+        {
+            _projects = result.Value;
+        }
+        else
+        {
+            _error = result.Error;
+        }
+        _loading = false;
+    }
+}

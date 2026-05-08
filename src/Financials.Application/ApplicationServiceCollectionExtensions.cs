@@ -1,4 +1,6 @@
+using Financials.Application.Common.Behaviours;
 using FluentValidation;
+using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Financials.Application;
@@ -9,12 +11,16 @@ public static class ApplicationServiceCollectionExtensions
     {
         var assembly = typeof(ApplicationAssemblyMarker).Assembly;
 
-        services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(assembly));
-        services.AddValidatorsFromAssembly(assembly);
+        services.AddMediatR(cfg =>
+        {
+            cfg.RegisterServicesFromAssembly(assembly);
+            // Behaviours run in registration order: validation first (cheap fast-fail),
+            // then logging wraps the handler invocation.
+            cfg.AddOpenBehavior(typeof(ValidationBehaviour<,>));
+            cfg.AddOpenBehavior(typeof(LoggingBehaviour<,>));
+        });
 
-        // Pipeline behaviours (validation, logging, correlation-ID, authorisation)
-        // land in Sprint 1 alongside the first command handler. Registering empty
-        // behaviours now would violate CLAUDE.md §2 #10 (no placeholder logic on main).
+        services.AddValidatorsFromAssembly(assembly);
 
         return services;
     }

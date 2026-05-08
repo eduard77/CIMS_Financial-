@@ -9,7 +9,12 @@
     <MudAppBar Elevation="1">
         <MudText Typo="Typo.h6">Genera Systems &mdash; Financials</MudText>
         <MudSpacer />
-        <MudText Typo="Typo.caption">Sprint 0 bootstrap</MudText>
+        <MudButton Href="/projects" Color="Color.Inherit" StartIcon="@Icons.Material.Filled.FolderOpen">
+            Projects
+        </MudButton>
+        <MudButton Href="/projects/confirm" Color="Color.Inherit" StartIcon="@Icons.Material.Filled.Add">
+            Confirm
+        </MudButton>
     </MudAppBar>
     <MudMainContent>
         @Body
