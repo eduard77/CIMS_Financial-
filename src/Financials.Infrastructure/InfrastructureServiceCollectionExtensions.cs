@@ -39,6 +39,7 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.AddScoped<IFinancialsDbContext>(sp => sp.GetRequiredService<FinancialsDbContext>());
         services.AddScoped<IFinancialsProjectRepository, FinancialsProjectRepository>();
+        services.AddScoped<IProjectCommercialConfigurationRepository, ProjectCommercialConfigurationRepository>();
 
         services.AddCimsClient(configuration);
 

@@ -1,0 +1,348 @@
+@page "/projects/{financialsProjectId:guid}/setup"
+@attribute [Authorize(Policy = AuthorizationPolicies.SetupRead)]
+@inject IMediator Mediator
+@inject ICimsClient Cims
+@inject IPermissionService Permissions
+@inject ISnackbar Snackbar
+@rendermode InteractiveServer
+
+<PageTitle>Project setup &mdash; Financials</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
+    <MudText Typo="Typo.h4" GutterBottom="true">Project setup</MudText>
+    <MudText Typo="Typo.body2" Class="mb-4">
+        F0 setup for this project. Catalog data (contract templates, tax regime, cost
+        codes, role assignments) is read from CIMS at view time. Retention and payment
+        terms are owned by Financials and persist in the project's commercial overlay.
+    </MudText>
+
+    <MudGrid>
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4" Elevation="1">
+                <MudText Typo="Typo.h6" GutterBottom="true">Commercial overlay (Financials)</MudText>
+                @if (_loadingSetup)
+                {
+                    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+                }
+                else if (_setupError is not null)
+                {
+                    <MudAlert Severity="Severity.Error">@_setupError</MudAlert>
+                }
+                else
+                {
+                    <MudSelect T="Guid?" @bind-Value="_form.ContractTemplateId" Label="Contract template" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+                        @foreach (var template in _templates ?? Array.Empty<ContractTemplateSummary>())
+                        {
+                            <MudSelectItem T="Guid?" Value="template.Id">
+                                @($"{template.Family} — {template.Name}")
+                            </MudSelectItem>
+                        }
+                    </MudSelect>
+
+                    <MudText Typo="Typo.subtitle2" Class="mt-3">Retention</MudText>
+                    <MudGrid>
+                        <MudItem xs="4">
+                            <MudNumericField T="decimal" @bind-Value="_form.RetentionPercentage"
+                                             Label="Held %" Min="0" Max="100" Format="N2" Culture="@_uk" />
+                        </MudItem>
+                        <MudItem xs="4">
+                            <MudNumericField T="decimal" @bind-Value="_form.RetentionReleaseAtPCPercentage"
+                                             Label="Release at PC %" Min="0" Max="100" Format="N2" Culture="@_uk" />
+                        </MudItem>
+                        <MudItem xs="4">
+                            <MudNumericField T="decimal" @bind-Value="_form.RetentionReleaseAtDLPEndPercentage"
+                                             Label="Release at DLP end %" Min="0" Max="100" Format="N2" Culture="@_uk" />
+                        </MudItem>
+                    </MudGrid>
+
+                    <MudText Typo="Typo.subtitle2" Class="mt-3">Payment terms</MudText>
+                    <MudGrid>
+                        <MudItem xs="4">
+                            <MudNumericField T="int" @bind-Value="_form.PaymentNetDays" Label="Net days" Min="1" />
+                        </MudItem>
+                        <MudItem xs="4">
+                            <MudNumericField T="int" @bind-Value="_form.PaymentCycleDays" Label="Cycle days" Min="1" />
+                        </MudItem>
+                        <MudItem xs="4">
+                            <MudNumericField T="int?" @bind-Value="_form.PaymentDueDayOfMonth" Label="Due day of month" Min="1" Max="31" />
+                        </MudItem>
+                    </MudGrid>
+
+                    @if (_submitError is not null)
+                    {
+                        <MudAlert Severity="Severity.Error" Class="mt-3">@_submitError</MudAlert>
+                    }
+
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-4"
+                               OnClick="SaveAsync"
+                               Disabled="@(!_canConfigure || _saving)"
+                               StartIcon="@Icons.Material.Filled.Save">
+                        @(_saving ? "Saving…" : "Save commercial setup")
+                    </MudButton>
+                }
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4" Elevation="1">
+                <MudText Typo="Typo.h6" GutterBottom="true">UK tax regime (CIMS)</MudText>
+                @if (_loadingTax)
+                {
+                    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+                }
+                else if (_taxError is not null)
+                {
+                    <MudAlert Severity="Severity.Error">@_taxError</MudAlert>
+                }
+                else if (_taxRegime is null)
+                {
+                    <MudAlert Severity="Severity.Info">No tax regime configured in CIMS for this project.</MudAlert>
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2">Currency: <b>@_taxRegime.Currency</b></MudText>
+                    <MudText Typo="Typo.body2">CIS: <b>@_taxRegime.CisScope</b></MudText>
+                    <MudText Typo="Typo.body2">Reverse Charge VAT: <b>@(_taxRegime.ReverseChargeVatEnabled ? "On" : "Off")</b></MudText>
+                    <MudText Typo="Typo.body2" Class="mt-2">VAT bands:</MudText>
+                    <MudList T="VatBand" Dense="true">
+                        @foreach (var band in _taxRegime.VatBands)
+                        {
+                            <MudListItem T="VatBand">@($"{band.Label}: {band.Rate * 100m:N2}%")</MudListItem>
+                        }
+                    </MudList>
+                }
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4" Elevation="1">
+                <MudText Typo="Typo.h6" GutterBottom="true">Cost breakdown structure (CIMS)</MudText>
+                @if (_loadingCbs)
+                {
+                    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+                }
+                else if (_cbsError is not null)
+                {
+                    <MudAlert Severity="Severity.Error">@_cbsError</MudAlert>
+                }
+                else if (_costCodes is { Count: 0 })
+                {
+                    <MudAlert Severity="Severity.Warning">No CBS in CIMS for this project. Configure a 4-level Uniclass-mapped CBS in CIMS first (F0 item 1).</MudAlert>
+                }
+                else if (_costCodes is not null)
+                {
+                    var maxDepth = _costCodes.Max(c => c.Depth);
+                    if (maxDepth < 4)
+                    {
+                        <MudAlert Severity="Severity.Warning" Class="mb-3">
+                            CBS has only @maxDepth level(s). F0 item 1 requires at least 4 levels with Uniclass mapping. Configure in CIMS.
+                        </MudAlert>
+                    }
+                    else
+                    {
+                        <MudAlert Severity="Severity.Success" Class="mb-3">
+                            CBS depth @maxDepth — F0 item 1 satisfied.
+                        </MudAlert>
+                    }
+                    <MudText Typo="Typo.caption">@_costCodes.Count nodes loaded.</MudText>
+                }
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4" Elevation="1">
+                <MudText Typo="Typo.h6" GutterBottom="true">Role assignments (CIMS)</MudText>
+                @if (_loadingRoles)
+                {
+                    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+                }
+                else if (_rolesError is not null)
+                {
+                    <MudAlert Severity="Severity.Error">@_rolesError</MudAlert>
+                }
+                else if (_roleAssignments is { Count: 0 })
+                {
+                    <MudAlert Severity="Severity.Info">No role assignments in CIMS for this project.</MudAlert>
+                }
+                else
+                {
+                    <MudSimpleTable Dense="true" Striped="true">
+                        <thead>
+                            <tr><th>Name</th><th>Email</th><th>Role</th></tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var a in _roleAssignments!)
+                        {
+                            <tr>
+                                <td>@a.DisplayName</td>
+                                <td>@a.Email</td>
+                                <td>@a.Role</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </MudSimpleTable>
+                }
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+</MudContainer>
+
+@code {
+    [Parameter] public Guid FinancialsProjectId { get; set; }
+
+    private readonly CultureInfo _uk = CultureInfo.GetCultureInfo("en-GB");
+
+    private SetupForm _form = new();
+    private bool _canConfigure;
+
+    private bool _loadingSetup = true;
+    private string? _setupError;
+    private string? _submitError;
+    private bool _saving;
+    private IReadOnlyList<ContractTemplateSummary>? _templates;
+
+    private bool _loadingTax = true;
+    private string? _taxError;
+    private ProjectTaxRegime? _taxRegime;
+
+    private bool _loadingCbs = true;
+    private string? _cbsError;
+    private IReadOnlyList<CostCodeNode>? _costCodes;
+
+    private bool _loadingRoles = true;
+    private string? _rolesError;
+    private IReadOnlyList<ProjectRoleAssignment>? _roleAssignments;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _canConfigure = Permissions.Has(AuthorizationPolicies.SetupConfigure);
+
+        await Task.WhenAll(
+            LoadCommercialSetupAsync(),
+            LoadTaxAsync(),
+            LoadCbsAsync(),
+            LoadRolesAsync());
+    }
+
+    private async Task LoadCommercialSetupAsync()
+    {
+        try
+        {
+            _templates = await Cims.ListContractTemplatesAsync();
+        }
+        catch (HttpRequestException)
+        {
+            _setupError = "CIMS is currently unavailable.";
+            _loadingSetup = false;
+            return;
+        }
+
+        var result = await Mediator.Send(new GetProjectCommercialSetupQuery(FinancialsProjectId));
+        if (result.IsSuccess)
+        {
+            if (result.Value is { } existing)
+            {
+                _form = SetupForm.FromDto(existing);
+            }
+        }
+        else
+        {
+            _setupError = result.Error;
+        }
+        _loadingSetup = false;
+    }
+
+    private async Task LoadTaxAsync()
+    {
+        try
+        {
+            _taxRegime = await Cims.GetProjectTaxRegimeAsync(FinancialsProjectId);
+        }
+        catch (HttpRequestException)
+        {
+            _taxError = "CIMS is currently unavailable.";
+        }
+        _loadingTax = false;
+    }
+
+    private async Task LoadCbsAsync()
+    {
+        try
+        {
+            _costCodes = await Cims.GetProjectCostCodesAsync(FinancialsProjectId);
+        }
+        catch (HttpRequestException)
+        {
+            _cbsError = "CIMS is currently unavailable.";
+        }
+        _loadingCbs = false;
+    }
+
+    private async Task LoadRolesAsync()
+    {
+        try
+        {
+            _roleAssignments = await Cims.GetProjectRoleAssignmentsAsync(FinancialsProjectId);
+        }
+        catch (HttpRequestException)
+        {
+            _rolesError = "CIMS is currently unavailable.";
+        }
+        _loadingRoles = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_form.ContractTemplateId is null)
+        {
+            _submitError = "Select a contract template.";
+            return;
+        }
+
+        _saving = true;
+        _submitError = null;
+
+        var result = await Mediator.Send(new ConfigureProjectCommercialSetupCommand(
+            FinancialsProjectId: FinancialsProjectId,
+            ContractTemplateId: _form.ContractTemplateId.Value,
+            RetentionPercentage: _form.RetentionPercentage,
+            RetentionReleaseAtPCPercentage: _form.RetentionReleaseAtPCPercentage,
+            RetentionReleaseAtDLPEndPercentage: _form.RetentionReleaseAtDLPEndPercentage,
+            PaymentNetDays: _form.PaymentNetDays,
+            PaymentCycleDays: _form.PaymentCycleDays,
+            PaymentDueDayOfMonth: _form.PaymentDueDayOfMonth));
+
+        _saving = false;
+
+        if (result.IsSuccess)
+        {
+            Snackbar.Add("Commercial setup saved.", MudBlazor.Severity.Success);
+        }
+        else
+        {
+            _submitError = result.Error;
+        }
+    }
+
+    private sealed class SetupForm
+    {
+        public Guid? ContractTemplateId { get; set; }
+        public decimal RetentionPercentage { get; set; } = 5m;
+        public decimal RetentionReleaseAtPCPercentage { get; set; } = 50m;
+        public decimal RetentionReleaseAtDLPEndPercentage { get; set; } = 50m;
+        public int PaymentNetDays { get; set; } = 30;
+        public int PaymentCycleDays { get; set; } = 30;
+        public int? PaymentDueDayOfMonth { get; set; }
+
+        public static SetupForm FromDto(ProjectCommercialSetupDto dto) => new()
+        {
+            ContractTemplateId = dto.ContractTemplateId,
+            RetentionPercentage = dto.RetentionPercentage,
+            RetentionReleaseAtPCPercentage = dto.RetentionReleaseAtPCPercentage,
+            RetentionReleaseAtDLPEndPercentage = dto.RetentionReleaseAtDLPEndPercentage,
+            PaymentNetDays = dto.PaymentNetDays,
+            PaymentCycleDays = dto.PaymentCycleDays,
+            PaymentDueDayOfMonth = dto.PaymentDueDayOfMonth,
+        };
+    }
+}

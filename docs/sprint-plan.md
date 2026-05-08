@@ -10,7 +10,8 @@
 |---|---|---|
 | Sprint 0 — Bootstrap | **Complete** | Solution scaffolding, EF Core, MudBlazor, /health, CI. |
 | Sprint 1 — Project Setup vertical slice | **Complete** | F0 item 5 met for projects: pick from CIMS, confirm, list. |
-| Sprint 2 — F0 complete | Next | Tax setup, contract templates, retention rules, payment terms, role assignments. |
+| Sprint 2 — F0 complete | **Complete** | F0 items 1–4 met via CIMS catalog reads + Financials commercial overlay (ADR-0005). |
+| Sprint 3 — F1 Budget (start) | Next | NRM2 BoQ import, cost code structure leaf assignment, budget revisions. |
 
 ---
 
@@ -70,11 +71,30 @@ Deferred (not blocking sprint sign-off, will land in Sprint 2 or as the trigger 
 
 ---
 
+## Sprint 2 — F0 complete (delivered)
+
+Goal (CLAUDE.md §5 + canonical plan §8): all F0 passing criteria met. Architectural model captured in [ADR-0005](./decisions/0005-f0-master-data-flow.md): CIMS owns catalogs (CBS, tax regime, contract template catalog, role assignments); Financials owns the per-project commercial overlay (`ProjectCommercialConfiguration`) holding contract template selection + retention scheme + payment terms.
+
+Delivered:
+
+- **ADR-0005** — F0 master data flow accepted before any code.
+- **Pattern A catalog endpoints** — four new methods on `ICimsClient` with the same Polly + bearer + correlation chain and 60s `IMemoryCache`: `ListContractTemplatesAsync`, `GetProjectTaxRegimeAsync`, `GetProjectCostCodesAsync`, `GetProjectRoleAssignmentsAsync`. DTOs (`ContractTemplateSummary`, `ProjectTaxRegime` + `VatBand` + `CisScope`, `CostCodeNode`, `ProjectRoleAssignment` + `FinancialsRole`) in `Financials.Application.Cims`.
+- **`ProjectCommercialConfiguration` aggregate** — 1:1 with `FinancialsProject`, with `RetentionScheme` and `PaymentTerms` value objects (factory-validated invariants). Cascade FK, unique index, RowVersion concurrency token, audit columns via the ADR-0004 interceptor. Migration `AddProjectCommercialConfigurations`.
+- **Application slice** — `ConfigureProjectCommercialSetupCommand` (creates new or updates in place; validates the contract template is in the CIMS catalog), `GetProjectCommercialSetupQuery` (joins the local config with the CIMS-resolved template name). FluentValidation rules cover all invariants.
+- **UI** — `/projects/{id}/setup` page with four parallel sections, each with its own loading/error/empty state: commercial overlay form (Financials-owned), UK tax regime read-through, CBS depth-check banner (≥ 4 = F0 item 1 satisfied), role assignments table. en-GB culture on decimal inputs. Permission-gated save.
+- **F0 item 4 — role-driven permissions** — two new policies (`SetupRead`, `SetupConfigure`); registration loop in `Program.cs`. `FinancialsRolePermissions` documents the expected permissions claim values per `FinancialsRole` for the audit/legal trail. UI button gating via `IPermissionService.Has`. Server-side enforcement via `[Authorize(Policy=...)]` plus Serilog request logging covers the "unauthorised actions blocked and logged" half of the criterion.
+- **Tests** — domain ring grew to 22 (RetentionScheme + PaymentTerms + ProjectCommercialConfiguration unit tests). Application ring 24 (ConfigureProjectCommercialSetup happy path, update-in-place, template-not-in-catalog, CIMS-throws, two validator rejections). Infrastructure ring 24 (catalog endpoint deserialisation + 404 + cache hit). Integration ring `CommercialSetupSliceTests` Testcontainers-backed: configure + read-back, configure-twice update-in-place, unknown-template rejection.
+
+Deferred:
+
+- **Manual browser demo** — still no dev CIMS / dev OIDC running locally; the in-process integration tests are the equivalent E2E proof for Sprint 2.
+- **CIMS-staging E2E** — placeholder remains; runs only when staging credentials and a separate workflow are wired.
+- **Soft delete on `ProjectCommercialConfiguration`** — CLAUDE.md §8 reserves soft delete for regulatory retention; not needed yet.
+
 ## Backlog (CLAUDE.md §5 order — not negotiable)
 
 | Sprint(s) | Module | Scope summary |
 |---|---|---|
-| 2 | F0 complete | Tax setup, contract templates, retention rules, payment terms, role assignments. |
 | 3–4 | F1 Budget | NRM2 BoQ import, cost code structure, budget revisions, multi-level rollup, MS Project / P6 XML import via Pattern B. |
 | 5–6 | F2 Commitments | Subcontracts, POs, retention setup, bonds / warranties / insurances, over-commitment guard. |
 | 7–9 | F3 Change management | NEC4 + JCT lifecycles, RFI links, schedule + budget impact, statutory clocks. |
@@ -109,5 +129,6 @@ Items here block no work in the current sprint, but need a call before they affe
 | 0002 | CIMS HTTP transport — typed HttpClient | Accepted |
 | 0003 | Identity — CIMS-issued JWT, validated locally via OIDC discovery | Accepted |
 | 0004 | Audit interceptor and IAuditable interface | Accepted |
+| 0005 | F0 master data flow — CIMS catalogs + Financials commercial overlay | Accepted |
 
 ADRs live in [`docs/decisions/`](./decisions/). Use [`0000-template.md`](./decisions/0000-template.md).

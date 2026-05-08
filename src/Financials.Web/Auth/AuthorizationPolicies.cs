@@ -10,4 +10,10 @@ public static class AuthorizationPolicies
 {
     public const string ProjectsConfirm = "financials.projects.confirm";
     public const string ProjectsRead = "financials.projects.read";
+
+    /// <summary>F0 item 4 — read commercial setup.</summary>
+    public const string SetupRead = "financials.setup.read";
+
+    /// <summary>F0 item 4 — write commercial setup (contract template, retention, payment terms).</summary>
+    public const string SetupConfigure = "financials.setup.configure";
 }

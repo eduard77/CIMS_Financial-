@@ -15,6 +15,9 @@ public class FinancialsDbContext : DbContext, IFinancialsDbContext
 
     public DbSet<FinancialsProject> FinancialsProjects => Set<FinancialsProject>();
 
+    public DbSet<ProjectCommercialConfiguration> ProjectCommercialConfigurations
+        => Set<ProjectCommercialConfiguration>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
