@@ -7,6 +7,7 @@ using Financials.Infrastructure.Budgets;
 using Financials.Infrastructure.Cims;
 using Financials.Infrastructure.Common;
 using Financials.Infrastructure.HealthChecks;
+using Financials.Infrastructure.Inbox;
 using Financials.Infrastructure.Persistence;
 using Financials.Infrastructure.Projects;
 using Microsoft.EntityFrameworkCore;
@@ -45,6 +46,12 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IBudgetRepository, BudgetRepository>();
 
         services.AddCimsClient(configuration);
+
+        services.AddOptions<CimsWebhookOptions>()
+            .Bind(configuration.GetSection(CimsWebhookOptions.SectionName))
+            .Validate(o => !string.IsNullOrWhiteSpace(o.Secret),
+                "Cims:Webhook:Secret is required (ADR-0007).");
+        services.AddScoped<IInboxEventDispatcher, InboxEventDispatcher>();
 
         services.AddHealthChecks()
             .AddCheck<FinancialsDbHealthCheck>("financials-db")

@@ -1,6 +1,30 @@
 # Event catalogue
 
-> Every event Financials publishes or subscribes to via Pattern B (CIMS as broker). One row per event, per direction, per version. Empty in Sprint 0; first entry lands in Sprint 1 if the project-setup slice publishes anything (likely not — F0 is local).
+> Every event Financials publishes or subscribes to via Pattern B (CIMS as broker). One row per event, per direction, per version. Inbound infrastructure landed in Sprint 4 ([ADR-0007](../decisions/0007-pattern-b-inbox-hmac.md)); outbound side ships with F3 in Sprints 7-9.
+
+## Inbound webhook surface (Sprint 4 — ADR-0007)
+
+`POST /api/events/incoming`. Allow-anonymous on the JwtBearer pipeline; HMAC-SHA256 over the raw body using `Cims:Webhook:Secret` is the auth.
+
+Headers:
+
+| Header | Required | Value |
+|---|---|---|
+| `Content-Type` | yes | `application/json` |
+| `X-Signature` | yes | base64(HMAC-SHA256(secret, raw_body)) |
+
+Envelope:
+
+```json
+{
+  "EventId": "<guid>",
+  "EventType": "<Name>_v<n>",
+  "OccurredAt": "<ISO 8601 UTC>",
+  "Payload": { /* event-specific shape */ }
+}
+```
+
+Responses: `200 { "processed": true }` on first success, `200 { "duplicate": true }` on re-delivery (idempotency by `EventId`), `401` on bad signature, `400` on bad envelope or unknown event type.
 
 ---
 
@@ -25,7 +49,24 @@
 
 | Event type | Version | First sprint | Source | Handler |
 |---|---|---|---|---|
-| _none yet_ | — | — | — | — |
+| `ScheduleActivityCostLoaded_v1` | 1 | Sprint 4 (F1 #2) | Optimisation Engine | `ScheduleActivityCostLoadedHandler` — adds a `BudgetLine` to the project's current draft revision with `ActivityId` populated |
+
+### `ScheduleActivityCostLoaded_v1` payload
+
+```csharp
+public sealed record ScheduleActivityCostLoadedV1(
+    Guid CimsProjectId,
+    Guid ActivityId,
+    string ActivityName,
+    Guid CimsCostCodeId,
+    decimal Quantity,
+    string UnitOfMeasure,
+    decimal UnitRateAmount,
+    string UnitRateCurrency,
+    string? WorkPackage);
+```
+
+Behaviour: the handler is a **no-op-and-log** for unknown projects, missing budgets, or no open draft revision. This guards against the Optimisation Engine racing ahead of Financials onboarding without rejecting events outright.
 
 ---
 

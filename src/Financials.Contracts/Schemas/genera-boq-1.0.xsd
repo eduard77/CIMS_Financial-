@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns="urn:genera-systems:boq:1.0"
+           targetNamespace="urn:genera-systems:boq:1.0"
+           elementFormDefault="qualified">
+
+  <!-- Genera BoQ XML 1.0 — NRM2-aligned Bill of Quantities import schema (ADR-0006, Sprint 4 F1 #1).
+       Vendors export their BoQ to this schema; Financials' ImportBoqCommand parses against it
+       and adds each line to the open draft revision via the Budget aggregate. -->
+
+  <xs:element name="BoqDocument">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="Header" type="BoqHeader" />
+        <xs:element name="Lines">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="Line" type="BoqLine" minOccurs="1" maxOccurs="unbounded" />
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+      <xs:attribute name="version" type="xs:string" use="required" fixed="1.0" />
+    </xs:complexType>
+  </xs:element>
+
+  <xs:complexType name="BoqHeader">
+    <xs:sequence>
+      <xs:element name="FinancialsProjectId" type="xs:string" />
+      <xs:element name="RevisionReason" type="xs:string" />
+      <xs:element name="Currency" type="xs:string" minOccurs="0" />
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="BoqLine">
+    <xs:sequence>
+      <xs:element name="CimsCostCodeId" type="xs:string" />
+      <xs:element name="Description" type="xs:string" />
+      <xs:element name="Quantity" type="xs:decimal" />
+      <xs:element name="UnitOfMeasure" type="xs:string" />
+      <xs:element name="UnitRate" type="xs:decimal" />
+      <xs:element name="WorkPackage" type="xs:string" minOccurs="0" />
+      <xs:element name="Nrm2Group" type="xs:string" minOccurs="0" />
+    </xs:sequence>
+    <xs:attribute name="lineNumber" type="xs:positiveInteger" use="required" />
+  </xs:complexType>
+
+</xs:schema>
