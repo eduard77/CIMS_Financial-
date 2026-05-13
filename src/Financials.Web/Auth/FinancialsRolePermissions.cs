@@ -32,6 +32,8 @@ public static class FinancialsRolePermissions
                 AuthorizationPolicies.CommitmentsSecuritiesRead,
                 AuthorizationPolicies.CommitmentsSecuritiesWrite,
                 AuthorizationPolicies.ReconciliationRead,
+                AuthorizationPolicies.ChangeEventsRead,
+                AuthorizationPolicies.ChangeEventsWrite,
             },
             [FinancialsRole.QuantitySurveyor] = new[]
             {
@@ -44,6 +46,8 @@ public static class FinancialsRolePermissions
                 AuthorizationPolicies.CommitmentsSecuritiesRead,
                 AuthorizationPolicies.CommitmentsSecuritiesWrite,
                 AuthorizationPolicies.ReconciliationRead,
+                AuthorizationPolicies.ChangeEventsRead,
+                AuthorizationPolicies.ChangeEventsWrite,
             },
             [FinancialsRole.CostEngineer] = new[]
             {
@@ -54,6 +58,7 @@ public static class FinancialsRolePermissions
                 AuthorizationPolicies.CommitmentsRead,
                 AuthorizationPolicies.CommitmentsSecuritiesRead,
                 AuthorizationPolicies.ReconciliationRead,
+                AuthorizationPolicies.ChangeEventsRead,
             },
             [FinancialsRole.Approver] = new[]
             {
@@ -64,6 +69,7 @@ public static class FinancialsRolePermissions
                 AuthorizationPolicies.CommitmentsRead,
                 AuthorizationPolicies.CommitmentsSecuritiesRead,
                 AuthorizationPolicies.ReconciliationRead,
+                AuthorizationPolicies.ChangeEventsRead,
             },
             [FinancialsRole.Viewer] = new[]
             {
@@ -73,6 +79,7 @@ public static class FinancialsRolePermissions
                 AuthorizationPolicies.CommitmentsRead,
                 AuthorizationPolicies.CommitmentsSecuritiesRead,
                 AuthorizationPolicies.ReconciliationRead,
+                AuthorizationPolicies.ChangeEventsRead,
             },
         };
 }

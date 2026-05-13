@@ -1,0 +1,373 @@
+@page "/projects/{financialsProjectId:guid}/change-events"
+@attribute [Authorize(Policy = AuthorizationPolicies.ChangeEventsRead)]
+@inject IMediator Mediator
+@inject IPermissionService Permissions
+@inject ISnackbar Snackbar
+@rendermode InteractiveServer
+
+<PageTitle>Change events &mdash; Financials</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
+    <MudText Typo="Typo.h4" GutterBottom="true">Change events</MudText>
+    <MudText Typo="Typo.body2" Class="mb-4">
+        F3 NEC4 skeleton (ADR-0011): Early Warning Register entries and
+        Compensation Events. Clocks are read-side; late submission does not
+        block transitions. JCT, bidirectional CIMS RFI link, and schedule /
+        budget impact publication land in Sprints 8 + 9.
+    </MudText>
+
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+    }
+    else if (_loadError is not null)
+    {
+        <MudAlert Severity="Severity.Error">@_loadError</MudAlert>
+    }
+    else
+    {
+        @if (_canWrite)
+        {
+            <MudPaper Class="pa-4 mb-4" Elevation="1">
+                <MudText Typo="Typo.h6" GutterBottom="true">Raise change event</MudText>
+                <MudGrid>
+                    <MudItem xs="12" md="3">
+                        <MudSelect T="ChangeEventType" @bind-Value="_form.Type" Label="Type">
+                            <MudSelectItem T="ChangeEventType" Value="ChangeEventType.EarlyWarning">Early warning</MudSelectItem>
+                            <MudSelectItem T="ChangeEventType" Value="ChangeEventType.CompensationEvent">Compensation event</MudSelectItem>
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" md="3">
+                        <MudTextField @bind-Value="_form.Reference" Label="Reference" MaxLength="100" />
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_form.Title" Label="Title" MaxLength="200" />
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="_form.Description" Label="Description" Lines="3" MaxLength="4000" />
+                    </MudItem>
+                </MudGrid>
+                @if (_raiseError is not null)
+                {
+                    <MudAlert Severity="Severity.Error" Class="mt-2">@_raiseError</MudAlert>
+                }
+                <MudButton Class="mt-3" Variant="Variant.Filled" Color="Color.Primary"
+                           OnClick="RaiseAsync"
+                           Disabled="@(!CanRaise() || _busy)"
+                           StartIcon="@Icons.Material.Filled.Add">Raise</MudButton>
+            </MudPaper>
+        }
+
+        @if (_events is { Count: 0 })
+        {
+            <MudAlert Severity="Severity.Info">No change events raised yet for this project.</MudAlert>
+        }
+        else
+        {
+            <MudDataGrid T="ChangeEventDto" Items="@_events" Dense="true" Hover="true">
+                <Columns>
+                    <PropertyColumn Property="x => x.Reference" Title="Reference" />
+                    <PropertyColumn Property="x => x.Type" Title="Type" />
+                    <PropertyColumn Property="x => x.Title" Title="Title" />
+                    <PropertyColumn Property="x => x.Status" Title="Status" />
+                    <TemplateColumn Title="Clock">
+                        <CellTemplate>
+                            @if (context.Item.Clock is { } clock)
+                            {
+                                var color = clock.IsBreached
+                                    ? Color.Error
+                                    : clock.RemainingDays <= 3
+                                        ? Color.Warning
+                                        : Color.Info;
+                                <MudChip T="string" Size="Size.Small" Color="@color">
+                                    @clock.Stage @($"{clock.RemainingDays} d")
+                                </MudChip>
+                            }
+                            else
+                            {
+                                <span>—</span>
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
+                    <TemplateColumn Title="Net effect">
+                        <CellTemplate>
+                            @(context.Item.EstimatedNetEffect is null
+                                ? "—"
+                                : $"{context.Item.EstimatedNetEffect.Value.ToString("N2", _uk)} {context.Item.Currency}")
+                        </CellTemplate>
+                    </TemplateColumn>
+                    <TemplateColumn Title="Actions">
+                        <CellTemplate>
+                            @if (!_canWrite) { /* read-only */ }
+                            else
+                            {
+                                switch (context.Item.Status)
+                                {
+                                    case ChangeEventStatus.CompensationEventNotified:
+                                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                                                   OnClick="@(() => OpenQuoteDialog(context.Item))" Disabled="@_busy">
+                                            Submit quote
+                                        </MudButton>
+                                        <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error"
+                                                   OnClick="@(() => OpenRejectDialog(context.Item))" Disabled="@_busy">
+                                            Reject
+                                        </MudButton>
+                                        break;
+                                    case ChangeEventStatus.CompensationEventQuoted:
+                                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                                                   OnClick="@(() => AssessAsync(context.Item.Id))" Disabled="@_busy">
+                                            Assess
+                                        </MudButton>
+                                        <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error"
+                                                   OnClick="@(() => OpenRejectDialog(context.Item))" Disabled="@_busy">
+                                            Reject
+                                        </MudButton>
+                                        break;
+                                    case ChangeEventStatus.CompensationEventAssessed:
+                                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Success"
+                                                   OnClick="@(() => ImplementAsync(context.Item.Id))" Disabled="@_busy">
+                                            Implement
+                                        </MudButton>
+                                        <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error"
+                                                   OnClick="@(() => OpenRejectDialog(context.Item))" Disabled="@_busy">
+                                            Reject
+                                        </MudButton>
+                                        break;
+                                    case ChangeEventStatus.EarlyWarningNotified:
+                                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                                                   OnClick="@(() => ReduceAsync(context.Item.Id))" Disabled="@_busy">
+                                            Reduce
+                                        </MudButton>
+                                        <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Default"
+                                                   OnClick="@(() => CloseEwAsync(context.Item.Id))" Disabled="@_busy">
+                                            Close
+                                        </MudButton>
+                                        break;
+                                    case ChangeEventStatus.EarlyWarningReduced:
+                                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default"
+                                                   OnClick="@(() => CloseEwAsync(context.Item.Id))" Disabled="@_busy">
+                                            Close
+                                        </MudButton>
+                                        break;
+                                }
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
+                </Columns>
+            </MudDataGrid>
+        }
+    }
+</MudContainer>
+
+@if (_quoteDialogOpen)
+{
+    <MudDialog @bind-Visible="_quoteDialogOpen">
+        <TitleContent>Submit quotation</TitleContent>
+        <DialogContent>
+            <MudText Typo="Typo.body2" Class="mb-2">
+                Estimated net effect (negative for omissions). Currency follows the change event: @_quoteCurrency.
+            </MudText>
+            <MudNumericField T="decimal" @bind-Value="_quoteAmount" Label="Amount"
+                             Format="N2" Culture="@_uk" />
+            @if (_quoteError is not null)
+            {
+                <MudAlert Severity="Severity.Error" Class="mt-2">@_quoteError</MudAlert>
+            }
+        </DialogContent>
+        <DialogActions>
+            <MudButton OnClick="@(() => _quoteDialogOpen = false)">Cancel</MudButton>
+            <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                       OnClick="ConfirmQuoteAsync" Disabled="@_busy">Submit</MudButton>
+        </DialogActions>
+    </MudDialog>
+}
+
+@if (_rejectDialogOpen)
+{
+    <MudDialog @bind-Visible="_rejectDialogOpen">
+        <TitleContent>Reject compensation event</TitleContent>
+        <DialogContent>
+            <MudTextField @bind-Value="_rejectReason" Label="Reason" Lines="3" MaxLength="2000" />
+            @if (_rejectError is not null)
+            {
+                <MudAlert Severity="Severity.Error" Class="mt-2">@_rejectError</MudAlert>
+            }
+        </DialogContent>
+        <DialogActions>
+            <MudButton OnClick="@(() => _rejectDialogOpen = false)">Cancel</MudButton>
+            <MudButton Color="Color.Error" Variant="Variant.Filled"
+                       OnClick="ConfirmRejectAsync" Disabled="@_busy">Reject</MudButton>
+        </DialogActions>
+    </MudDialog>
+}
+
+@code {
+    [Parameter] public Guid FinancialsProjectId { get; set; }
+
+    private readonly CultureInfo _uk = CultureInfo.GetCultureInfo("en-GB");
+
+    private bool _loading = true;
+    private bool _busy;
+    private bool _canWrite;
+    private string? _loadError;
+
+    private IReadOnlyList<ChangeEventDto>? _events;
+    private RaiseForm _form = new();
+    private string? _raiseError;
+
+    private bool _quoteDialogOpen;
+    private Guid _quoteTargetId;
+    private string _quoteCurrency = "GBP";
+    private decimal _quoteAmount;
+    private string? _quoteError;
+
+    private bool _rejectDialogOpen;
+    private Guid _rejectTargetId;
+    private string _rejectReason = string.Empty;
+    private string? _rejectError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _canWrite = Permissions.Has(AuthorizationPolicies.ChangeEventsWrite);
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _loadError = null;
+        var result = await Mediator.Send(new ListChangeEventsForProjectQuery(FinancialsProjectId));
+        if (result.IsSuccess)
+        {
+            _events = result.Value;
+        }
+        else
+        {
+            _loadError = result.Error;
+        }
+        _loading = false;
+    }
+
+    private bool CanRaise() =>
+        _canWrite
+        && _form.Type != ChangeEventType.Unknown
+        && !string.IsNullOrWhiteSpace(_form.Reference)
+        && !string.IsNullOrWhiteSpace(_form.Title)
+        && !string.IsNullOrWhiteSpace(_form.Description);
+
+    private async Task RaiseAsync()
+    {
+        _busy = true;
+        _raiseError = null;
+        var result = await Mediator.Send(new RaiseChangeEventCommand(
+            FinancialsProjectId, _form.Type, _form.Reference, _form.Title, _form.Description));
+        _busy = false;
+        if (result.IsSuccess)
+        {
+            Snackbar.Add($"{_form.Type} {_form.Reference} raised.", MudBlazor.Severity.Success);
+            _form = new RaiseForm();
+            await LoadAsync();
+        }
+        else
+        {
+            _raiseError = result.Error;
+        }
+    }
+
+    private void OpenQuoteDialog(ChangeEventDto ev)
+    {
+        _quoteTargetId = ev.Id;
+        _quoteCurrency = ev.Currency;
+        _quoteAmount = 0m;
+        _quoteError = null;
+        _quoteDialogOpen = true;
+    }
+
+    private async Task ConfirmQuoteAsync()
+    {
+        _busy = true;
+        _quoteError = null;
+        var result = await Mediator.Send(new SubmitQuotationCommand(_quoteTargetId, _quoteAmount));
+        _busy = false;
+        if (result.IsSuccess)
+        {
+            _quoteDialogOpen = false;
+            Snackbar.Add("Quotation submitted.", MudBlazor.Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            _quoteError = result.Error;
+        }
+    }
+
+    private async Task AssessAsync(Guid id)
+    {
+        await ExecuteTransitionAsync(new AssessChangeEventCommand(id), "Assessed.");
+    }
+
+    private async Task ImplementAsync(Guid id)
+    {
+        await ExecuteTransitionAsync(new ImplementChangeEventCommand(id), "Implemented.");
+    }
+
+    private async Task ReduceAsync(Guid id)
+    {
+        await ExecuteTransitionAsync(new ReduceEarlyWarningCommand(id), "Reduced.");
+    }
+
+    private async Task CloseEwAsync(Guid id)
+    {
+        await ExecuteTransitionAsync(new CloseEarlyWarningCommand(id), "Closed.");
+    }
+
+    private void OpenRejectDialog(ChangeEventDto ev)
+    {
+        _rejectTargetId = ev.Id;
+        _rejectReason = string.Empty;
+        _rejectError = null;
+        _rejectDialogOpen = true;
+    }
+
+    private async Task ConfirmRejectAsync()
+    {
+        _busy = true;
+        _rejectError = null;
+        var result = await Mediator.Send(new RejectChangeEventCommand(_rejectTargetId, _rejectReason));
+        _busy = false;
+        if (result.IsSuccess)
+        {
+            _rejectDialogOpen = false;
+            Snackbar.Add("Change event rejected.", MudBlazor.Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            _rejectError = result.Error;
+        }
+    }
+
+    private async Task ExecuteTransitionAsync(IRequest<Application.Common.Result> command, string success)
+    {
+        _busy = true;
+        var result = await Mediator.Send(command);
+        _busy = false;
+        if (result.IsSuccess)
+        {
+            Snackbar.Add(success, MudBlazor.Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            _loadError = result.Error;
+        }
+    }
+
+    private sealed class RaiseForm
+    {
+        public ChangeEventType Type { get; set; } = ChangeEventType.CompensationEvent;
+        public string Reference { get; set; } = string.Empty;
+        public string Title { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+    }
+}

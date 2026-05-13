@@ -40,4 +40,10 @@ public static class AuthorizationPolicies
 
     /// <summary>F2 #4 — read the budget vs commitments reconciliation dashboard.</summary>
     public const string ReconciliationRead = "financials.reconciliation.read";
+
+    /// <summary>F3 — read change events (Early Warning Register + Compensation Events).</summary>
+    public const string ChangeEventsRead = "financials.changeevents.read";
+
+    /// <summary>F3 — raise + transition change events.</summary>
+    public const string ChangeEventsWrite = "financials.changeevents.write";
 }

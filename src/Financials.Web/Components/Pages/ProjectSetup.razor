@@ -86,6 +86,29 @@
                         </MudItem>
                     </MudGrid>
 
+                    <MudText Typo="Typo.subtitle2" Class="mt-3">NEC4 SLA periods (F3)</MudText>
+                    <MudText Typo="Typo.caption" Class="mb-2">
+                        Calendar days. Defaults match the NEC4 ECC standard form; override for project Options or Z-clauses.
+                    </MudText>
+                    <MudGrid>
+                        <MudItem xs="3">
+                            <MudNumericField T="int" @bind-Value="_form.Nec4PmAcknowledgementDays"
+                                             Label="PM acknowledgement" Min="1" Max="365" />
+                        </MudItem>
+                        <MudItem xs="3">
+                            <MudNumericField T="int" @bind-Value="_form.Nec4ContractorQuotationDays"
+                                             Label="Contractor quotation" Min="1" Max="365" />
+                        </MudItem>
+                        <MudItem xs="3">
+                            <MudNumericField T="int" @bind-Value="_form.Nec4PmAssessmentDays"
+                                             Label="PM assessment" Min="1" Max="365" />
+                        </MudItem>
+                        <MudItem xs="3">
+                            <MudNumericField T="int" @bind-Value="_form.Nec4EarlyWarningResponseDays"
+                                             Label="Early warning response" Min="1" Max="365" />
+                        </MudItem>
+                    </MudGrid>
+
                     @if (_submitError is not null)
                     {
                         <MudAlert Severity="Severity.Error" Class="mt-3">@_submitError</MudAlert>
@@ -333,7 +356,11 @@
             OverCommitmentToleranceAmount: _form.OverCommitmentToleranceAmount,
             OverCommitmentToleranceCurrency: string.IsNullOrWhiteSpace(_form.OverCommitmentToleranceCurrency)
                 ? "GBP"
-                : _form.OverCommitmentToleranceCurrency.ToUpperInvariant()));
+                : _form.OverCommitmentToleranceCurrency.ToUpperInvariant(),
+            Nec4PmAcknowledgementDays: _form.Nec4PmAcknowledgementDays,
+            Nec4ContractorQuotationDays: _form.Nec4ContractorQuotationDays,
+            Nec4PmAssessmentDays: _form.Nec4PmAssessmentDays,
+            Nec4EarlyWarningResponseDays: _form.Nec4EarlyWarningResponseDays));
 
         _saving = false;
 
@@ -359,6 +386,10 @@
         public OverCommitmentMode OverCommitmentMode { get; set; } = OverCommitmentMode.Warn;
         public decimal OverCommitmentToleranceAmount { get; set; }
         public string OverCommitmentToleranceCurrency { get; set; } = "GBP";
+        public int Nec4PmAcknowledgementDays { get; set; } = 7;
+        public int Nec4ContractorQuotationDays { get; set; } = 21;
+        public int Nec4PmAssessmentDays { get; set; } = 14;
+        public int Nec4EarlyWarningResponseDays { get; set; } = 7;
 
         public static SetupForm FromDto(ProjectCommercialSetupDto dto) => new()
         {
@@ -372,6 +403,10 @@
             OverCommitmentMode = dto.OverCommitmentMode,
             OverCommitmentToleranceAmount = dto.OverCommitmentToleranceAmount,
             OverCommitmentToleranceCurrency = dto.OverCommitmentToleranceCurrency,
+            Nec4PmAcknowledgementDays = dto.Nec4PmAcknowledgementDays,
+            Nec4ContractorQuotationDays = dto.Nec4ContractorQuotationDays,
+            Nec4PmAssessmentDays = dto.Nec4PmAssessmentDays,
+            Nec4EarlyWarningResponseDays = dto.Nec4EarlyWarningResponseDays,
         };
     }
 }

@@ -92,6 +92,8 @@ try
             AuthorizationPolicies.CommitmentsSecuritiesRead,
             AuthorizationPolicies.CommitmentsSecuritiesWrite,
             AuthorizationPolicies.ReconciliationRead,
+            AuthorizationPolicies.ChangeEventsRead,
+            AuthorizationPolicies.ChangeEventsWrite,
         })
         {
             options.AddPolicy(
