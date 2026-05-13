@@ -2,7 +2,7 @@
 
 Commercial management for UK construction. One of four independent products that together form the Genera Systems platform.
 
-> **Status:** Sprint 1 — F0 vertical slice (Project Setup). A logged-in user can pick a CIMS project, confirm it for Financials, and see the confirmed list. Real Pattern A `CimsClient` (typed `HttpClient` + Polly + 60s cache + bearer forwarding) per ADR-0002; CIMS-issued JWT validated locally via OIDC discovery per ADR-0003; audit columns stamped by interceptor per ADR-0004.
+> **Status:** Sprint 6 — F2 closed. Subcontracts and POs raise against budget lines (F2 #1), the per-project over-commitment guard runs at Activate in `Warn` / `HardBlock` / `Disabled` mode (F2 #2, ADR-0009), bonds / warranties / insurances track with 30 / 14 / 7-day expiry alerts (F2 #3, ADR-0010), and the `/projects/{id}/reconciliation` dashboard proves `committed + uncommitted = budget + approved changes` (F2 #4). F0 + F1 + F2 fully done; Sprints 7–9 (F3 Change management) next.
 > See [docs/sprint-plan.md](./docs/sprint-plan.md) for current sprint and roadmap.
 
 ---
@@ -218,4 +218,4 @@ Issues, security reports, and commercial enquiries: see CONTACT.md (when publish
 
 ---
 
-*This README reflects the repository as of Sprint 1 (F0 Project Setup vertical slice). Updated each sprint with anything a new contributor or future Claude Code session needs to know on day one.*
+*This README reflects the repository as of Sprint 6 (F2 closed — commitments + over-commitment guard + securities + reconciliation). Updated each sprint with anything a new contributor or future Claude Code session needs to know on day one.*

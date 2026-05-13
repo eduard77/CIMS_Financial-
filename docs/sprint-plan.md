@@ -14,7 +14,8 @@
 | Sprint 3 — F1 Budget foundation | **Complete** | Budget aggregate (ADR-0006) + manual entry + revisions + rollup. F1 items 3 + 4 met. |
 | Sprint 4 — F1 Budget imports | **Complete** | Pattern B inbox (ADR-0007) + ScheduleActivityCostLoaded_v1 handler + Genera BoQ XML 1.0 import. F1 items 1 + 2 met. |
 | Sprint 5 — F2 Commitments foundation | **Complete** | Commitment aggregate (ADR-0008) + raise + activate + close + counterparty resolution. F2 #1 met. |
-| Sprint 6 — F2 over-commitment + bonds + reconciliation | Next | F2 #2 over-commitment guard, F2 #3 bonds/warranties/insurances, F2 #4 reconciliation dashboard. |
+| Sprint 6 — F2 over-commitment + bonds + reconciliation | **Complete** | Over-commitment guard (ADR-0009) + commitment securities (ADR-0010) + reconciliation query. F2 #2, #3, #4 met. |
+| Sprint 7–9 — F3 Change management | Next | NEC4 + JCT lifecycles, RFI bidirectional links, schedule + budget impact, statutory clocks. |
 
 ---
 
@@ -94,6 +95,34 @@ Deferred:
 - **CIMS-staging E2E** — placeholder remains; runs only when staging credentials and a separate workflow are wired.
 - **Soft delete on `ProjectCommercialConfiguration`** — CLAUDE.md §8 reserves soft delete for regulatory retention; not needed yet.
 
+---
+
+## Sprint 6 — F2 over-commitment + bonds + reconciliation (delivered)
+
+Goal (CLAUDE.md §5 + canonical plan §8 F2 #2 / #3 / #4): close out F2 with the over-commitment guard, the bonds / warranties / insurances ("securities") aggregate, and the reconciliation dashboard. Two new ADRs accepted before code (see §13 — re-read ADR-0008 confirmed the bonds shape was signposted, not yet decided).
+
+Delivered:
+
+- **ADR-0009** — Over-commitment guard: per-project policy on `ProjectCommercialConfiguration` (`OverCommitmentPolicy` value object: `Mode ∈ {Disabled, Warn, HardBlock}` + `Tolerance` Money). Default `Warn / 0 GBP` (Sprint 6 user decision). Enforcement at `Activate` only; pre-flight `EvaluateCommitmentImpactQuery` for UI banners. F3 hook (`approvedChanges`) returns zero today; the evaluator signature accommodates it.
+- **ADR-0010** — Commitment securities: separate `CommitmentSecurity` aggregate keyed by `CommitmentId`, single table with `SecurityType ∈ {Bond, Warranty, Insurance}` discriminator. Lifecycle `Active → Superseded (renewal) | Cancelled`; `Expired` is a read-side projection. Read-side `CommitmentSecurityAlertWindow` thresholds at 30 / 14 / 7 days.
+- **Domain.** `OverCommitmentMode` + `OverCommitmentPolicy` value object on `ProjectCommercialConfiguration` (`Configure` defaults policy when omitted; `SetOverCommitmentPolicy` idempotent). `SecurityType` + `CommitmentSecurityStatus` + `CommitmentSecurity` aggregate with factory invariants (expiry > effective, non-negative value, non-empty issuer), `SupersedeBy`, `Cancel(reason, user, at)`, `IsExpiredOn(date)` projection. Currency match enforced where applicable.
+- **Application.** `IOverCommitmentEvaluator` (scoped) with `OverCommitmentEvaluator` implementation reading `IBudgetRepository` + `ICommitmentRepository` + `IProjectCommercialConfigurationRepository`. `ActivateCommitmentCommandHandler` rewired to call the evaluator: HardBlock + breaches → `Result.Failure` with per-cost-code breach detail; Warn + breaches → success with a structured Serilog warning per breach; Disabled → no evaluation. Pre-flight `EvaluateCommitmentImpactQuery` for the UI banner. Securities slice: `AddCommitmentSecurityCommand`, `CancelCommitmentSecurityCommand`, `ListCommitmentSecuritiesQuery` (per project, with `CommitmentSecurityAlertWindow.Compute` projection and CIMS Pattern-A issuer resolution). `GetBudgetReconciliationQuery` returns per-CIMS-cost-code rows plus totals and an `InvariantHolds` boolean (`committed + uncommitted = budget + approved changes` within £0.01).
+- **F0 setup command extended.** `ConfigureProjectCommercialSetupCommand` carries three additional optional params (`OverCommitmentMode`, `OverCommitmentToleranceAmount`, `OverCommitmentToleranceCurrency`) with `Warn / 0 GBP` defaults. `GetProjectCommercialSetupQuery` DTO surfaces the same three.
+- **Infrastructure.** `CommitmentSecurityConfiguration` (single table, unique `(CommitmentId, Type, Reference)` index, supplementary `Issuer` and `SupersededBy` indices, owned-money for `Value` with nullable columns, `RowVersion` + audit). `OverCommitmentPolicy` mapped as owned-one on `ProjectCommercialConfiguration` (three new columns: `OverCommitmentMode int`, `OverCommitmentToleranceAmount decimal(19,4)`, `OverCommitmentToleranceCurrency nchar(3)`). `CommitmentSecurityRepository`. Migration `AddOverCommitmentPolicyAndCommitmentSecurities` backfills existing rows to `Warn / 0 GBP / 'GBP'`.
+- **UI.** `/projects/{id}/commitments` extended with a per-row over-commitment chip (`EvaluateCommitmentImpactQuery` per commitment), and a "Bonds, warranties & insurances" panel with alert colours mapped from `CommitmentSecurityAlertLevel` (Critical → Error, High → Warning, Warning → Info, Expired → Dark) and an add/cancel form. New `/projects/{id}/reconciliation` MudDataGrid + invariant banner. `/projects/{id}/setup` gains the over-commitment policy section.
+- **Auth policies.** Three new: `CommitmentsSecuritiesRead`, `CommitmentsSecuritiesWrite`, `ReconciliationRead`. `FinancialsRolePermissions` updated; `Program.cs` policy loop extended.
+- **Tests.** Domain ring: `OverCommitmentPolicyTests` + `CommitmentSecurityTests` covering construction invariants, state transitions, and read-side projection. Application ring: `OverCommitmentEvaluatorTests` (Disabled short-circuit, Warn-mode breach detection, tolerance absorption, sibling Active commitments combine, missing budget treats envelope as zero, missing commitment throws), `CommitmentSecurityAlertWindowTests` (boundary tests at 0/1/7/8/14/15/30/31 days), `ActivateCommitmentCommandHandlerTests` (three modes vs evaluator stub), `GetBudgetReconciliationQueryHandlerTests` (invariant holds even on over-committed cost codes; Draft commitments excluded from `committed`). Infrastructure / slice ring: `OverCommitmentGuardSliceTests` (HardBlock rejects, Warn activates, Disabled skips evaluation) + `CommitmentSecuritiesSliceTests` (add / list with alert level / cancel / duplicate-reference rejection / closed-commitment rejection) + `ReconciliationDashboardSliceTests` (full F2 flow → invariant holds).
+
+Deferred:
+
+- **Email / notification on expiry.** Sprint 6 surfaces alerts on the dashboard only; outbound notifications wait for an ADR on the alerting channel (likely a CIMS notification event, Pattern B).
+- **Manual browser demo.** Still no dev CIMS or dev OIDC authority running locally; in-process slice tests are the equivalent E2E proof for Sprint 6.
+- **CIMS staging E2E.** Placeholder remains; runs only once staging credentials and a separate workflow are wired (carried from Sprint 1).
+- **Per-cost-code over-commitment tolerance.** Single project-wide tolerance in v1. Per-cost-code tolerance is a future ADR if customer data demands it (ADR-0009 §Negative).
+- **Security renewal UI.** Domain method `SupersedeBy` exists; UI currently routes "remove" through `Cancel`. Renewal flow (add new + supersede old in one command) is one Sprint 7 follow-up if requested.
+
+---
+
 ## Backlog (CLAUDE.md §5 order — not negotiable)
 
 | Sprint(s) | Module | Scope summary |
@@ -136,5 +165,7 @@ Items here block no work in the current sprint, but need a call before they affe
 | 0006 | Budget aggregate structure for F1 | Accepted |
 | 0007 | Pattern B inbox — HMAC-signed webhooks with a per-spoke secret | Accepted |
 | 0008 | Commitment aggregate — single root with type discriminator | Accepted |
+| 0009 | Over-commitment guard — per-project policy enforced at Activate | Accepted |
+| 0010 | Commitment securities — single aggregate covering bonds, warranties, insurances | Accepted |
 
 ADRs live in [`docs/decisions/`](./decisions/). Use [`0000-template.md`](./decisions/0000-template.md).
