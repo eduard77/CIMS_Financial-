@@ -1,6 +1,7 @@
 using Financials.Application.Cims;
 using Financials.Application.Common;
 using Financials.Application.Persistence;
+using Financials.Domain.Common;
 using Financials.Domain.Projects;
 using FluentValidation;
 using MediatR;
@@ -10,7 +11,8 @@ namespace Financials.Application.Projects;
 /// <summary>
 /// Configures (or updates) the Financials commercial overlay for a project
 /// per ADR-0005. F0 item 3 (contract template selection); also persists
-/// retention scheme + payment terms.
+/// retention scheme + payment terms; from Sprint 6 also persists the F2
+/// over-commitment policy (ADR-0009).
 /// </summary>
 public sealed record ConfigureProjectCommercialSetupCommand(
     Guid FinancialsProjectId,
@@ -20,7 +22,11 @@ public sealed record ConfigureProjectCommercialSetupCommand(
     decimal RetentionReleaseAtDLPEndPercentage,
     int PaymentNetDays,
     int PaymentCycleDays,
-    int? PaymentDueDayOfMonth) : IRequest<Result<Guid>>;
+    int? PaymentDueDayOfMonth,
+    OverCommitmentMode OverCommitmentMode = OverCommitmentMode.Warn,
+    decimal OverCommitmentToleranceAmount = 0m,
+    string OverCommitmentToleranceCurrency = Money.DefaultCurrency)
+    : IRequest<Result<Guid>>;
 
 public sealed class ConfigureProjectCommercialSetupValidator
     : AbstractValidator<ConfigureProjectCommercialSetupCommand>
@@ -40,6 +46,9 @@ public sealed class ConfigureProjectCommercialSetupValidator
         RuleFor(x => x.PaymentCycleDays).GreaterThan(0);
         RuleFor(x => x.PaymentDueDayOfMonth).InclusiveBetween(1, 31)
             .When(x => x.PaymentDueDayOfMonth.HasValue);
+        RuleFor(x => x.OverCommitmentMode).IsInEnum();
+        RuleFor(x => x.OverCommitmentToleranceAmount).GreaterThanOrEqualTo(0m);
+        RuleFor(x => x.OverCommitmentToleranceCurrency).NotEmpty().Length(3);
     }
 }
 
@@ -105,19 +114,34 @@ public sealed class ConfigureProjectCommercialSetupCommandHandler
             request.PaymentCycleDays,
             request.PaymentDueDayOfMonth);
 
+        OverCommitmentPolicy policy;
+        try
+        {
+            policy = OverCommitmentPolicy.Create(
+                request.OverCommitmentMode,
+                new Money(
+                    request.OverCommitmentToleranceAmount,
+                    request.OverCommitmentToleranceCurrency));
+        }
+        catch (Exception ex) when (ex is ArgumentException or ArgumentOutOfRangeException)
+        {
+            return Result<Guid>.Failure(ex.Message);
+        }
+
         if (existing is null)
         {
             var config = ProjectCommercialConfiguration.Configure(
                 request.FinancialsProjectId,
                 request.ContractTemplateId,
                 retention,
-                paymentTerms);
+                paymentTerms,
+                policy);
             _configs.Add(config);
             await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             return Result<Guid>.Success(config.Id);
         }
 
-        existing.UpdateConfiguration(request.ContractTemplateId, retention, paymentTerms);
+        existing.UpdateConfiguration(request.ContractTemplateId, retention, paymentTerms, policy);
         await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         return Result<Guid>.Success(existing.Id);
     }

@@ -1,3 +1,4 @@
+using Financials.Application.Commitments;
 using Financials.Application.Common.Behaviours;
 using FluentValidation;
 using MediatR;
@@ -21,6 +22,7 @@ public static class ApplicationServiceCollectionExtensions
         });
 
         services.AddValidatorsFromAssembly(assembly);
+        services.AddScoped<IOverCommitmentEvaluator, OverCommitmentEvaluator>();
 
         return services;
     }
