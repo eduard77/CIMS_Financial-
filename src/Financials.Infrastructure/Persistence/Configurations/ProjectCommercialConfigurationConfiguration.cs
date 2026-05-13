@@ -61,6 +61,28 @@ internal sealed class ProjectCommercialConfigurationConfiguration
                 .HasColumnName("PaymentDueDayOfMonth");
         });
 
+        builder.OwnsOne(x => x.OverCommitmentPolicy, policy =>
+        {
+            policy.Property(p => p.Mode)
+                .HasColumnName("OverCommitmentMode")
+                .HasConversion<int>()
+                .IsRequired();
+            policy.OwnsOne(p => p.Tolerance, tolerance =>
+            {
+                tolerance.Property(t => t.Amount)
+                    .HasColumnName("OverCommitmentToleranceAmount")
+                    .HasPrecision(19, 4)
+                    .IsRequired();
+                tolerance.Property(t => t.Currency)
+                    .HasColumnName("OverCommitmentToleranceCurrency")
+                    .HasMaxLength(3)
+                    .IsFixedLength()
+                    .IsRequired();
+            });
+            policy.Navigation(p => p.Tolerance).IsRequired();
+        });
+        builder.Navigation(x => x.OverCommitmentPolicy).IsRequired();
+
         builder.Property(x => x.RowVersion)
             .IsRowVersion()
             .IsConcurrencyToken();
