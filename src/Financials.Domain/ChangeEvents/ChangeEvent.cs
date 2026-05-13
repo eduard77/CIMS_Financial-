@@ -66,6 +66,8 @@ public sealed class ChangeEvent : IAuditable
 
     private ChangeEvent() { }
 
+    [SuppressMessage("Design", "CA1030:Use events where appropriate",
+        Justification = "Domain event pattern, not a CLR event.")]
     public static ChangeEvent Raise(
         Guid financialsProjectId,
         ChangeEventType type,
