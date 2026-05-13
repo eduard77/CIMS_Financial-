@@ -15,7 +15,9 @@
 | Sprint 4 — F1 Budget imports | **Complete** | Pattern B inbox (ADR-0007) + ScheduleActivityCostLoaded_v1 handler + Genera BoQ XML 1.0 import. F1 items 1 + 2 met. |
 | Sprint 5 — F2 Commitments foundation | **Complete** | Commitment aggregate (ADR-0008) + raise + activate + close + counterparty resolution. F2 #1 met. |
 | Sprint 6 — F2 over-commitment + bonds + reconciliation | **Complete** | Over-commitment guard (ADR-0009) + commitment securities (ADR-0010) + reconciliation query. F2 #2, #3, #4 met. |
-| Sprint 7–9 — F3 Change management | Next | NEC4 + JCT lifecycles, RFI bidirectional links, schedule + budget impact, statutory clocks. |
+| Sprint 7 — F3 NEC4 skeleton | **Complete** | ChangeEvent aggregate (ADR-0011) + NEC4 EW + CE state machines + read-side SLA clocks + per-project Nec4SlaPolicy. F3 #1 met (NEC4 portion). |
+| Sprint 8 — F3 JCT + CIMS RFI link | Next | JCT lifecycle (AI / CVI / Variation routes), bidirectional CIMS RFI link, EWR-to-CE promotion. F3 #2 + #3. |
+| Sprint 9 — F3 schedule + budget impact | Pending | Pattern B publish to Optimisation Engine + F1 budget impact wire-through. F3 #4 + #5 + #6. |
 
 ---
 
@@ -123,6 +125,32 @@ Deferred:
 
 ---
 
+## Sprint 7 — F3 NEC4 skeleton (delivered)
+
+Goal (canonical plan §F3 #1; CLAUDE.md §5): local-only NEC4 change-event skeleton on which Sprints 8 + 9 hang. **No JCT, no Pattern B publish, no bidirectional CIMS RFI link, no F1 budget-impact push** — those are explicitly Sprints 8 + 9 (with the schema hooks now in place).
+
+ADR-0011 accepted before code with two CLAUDE.md §13 user decisions: SLAs as per-project policy with conservative defaults (not hard-coded clause text); clock expiry is read-side only (never blocks transitions).
+
+Delivered:
+
+- **ADR-0011.** ChangeEvent aggregate (single root, type discriminator, NEC4-only enum values for v1), state machines, per-project `Nec4SlaPolicy`, read-side clocks. F3 hook columns reserved for Sprint 8 (`SourceCimsRfiId` nullable) and Sprint 9 (`EstimatedNetEffect` Money?). Captures NEC4 default periods (7 / 21 / 14 / 7 days) as plain integers — not clause interpretation.
+- **Domain.** `ChangeEventType` (EarlyWarning | CompensationEvent), `ChangeEventStatus` (flat enum across both type lifecycles + `Rejected`), `ChangeEvent` aggregate with state-machine methods that re-assert `Type`: `Raise`, `SubmitQuotation`, `Assess`, `Implement`, `Reject`, `ReduceEarlyWarning`, `CloseEarlyWarning`, `LinkSourceCimsRfi`. `Nec4SlaPolicy` value object with 1–365 day validation; `ProjectCommercialConfiguration.Configure` defaults policy when omitted.
+- **Application.** Seven commands (Raise, SubmitQuotation, Assess, Implement, Reject, ReduceEarlyWarning, CloseEarlyWarning) + `ListChangeEventsForProjectQuery` returning `ChangeEventDto` with attached `ChangeEventClock` read-side projection (ContractorQuotation / PmAssessment / EarlyWarningResponse stages, breach flag, calendar-day remaining). `ConfigureProjectCommercialSetupCommand` extended with four defaulted SLA params.
+- **Infrastructure.** `ChangeEventConfiguration` mapping (single table, owned-Money EstimatedNetEffect, unique `(FinancialsProjectId, Type, Reference)` + `SourceCimsRfiId` indices, RowVersion + audit). `Nec4SlaPolicy` mapped as owned-one on the existing project config. Migration `AddChangeEventsAndNec4SlaPolicy` adds the four SLA columns (existing rows backfill to 7 / 21 / 14 / 7) + creates `fin.ChangeEvents`.
+- **UI.** `/projects/{id}/change-events` page with raise form, MudDataGrid of all change events, per-row transition buttons (Submit quote / Assess / Implement / Reject for CEs; Reduce / Close for EWs), MudDialogs for quote amount and rejection reason, colour-coded clock chip (Error when breached, Warning when ≤ 3 days, Info otherwise). `/projects/{id}/setup` gains an NEC4 SLA section. Two new auth policies (`ChangeEventsRead` / `ChangeEventsWrite`) registered in `Program.cs` and mapped per role.
+- **Tests.** Domain ring: `ChangeEventTests` covering both state machines, type-mismatched transitions rejected, rejection allowed pre-implementation only, currency match on quotation, idempotent CIMS RFI link, trim of reference/title/description; `Nec4SlaPolicyTests` covering defaults, out-of-range rejection, boundary acceptance, configuration update path. Application ring: `ChangeEventClockProjectionTests` (ContractorQuotation / PmAssessment / EarlyWarningResponse / Rejected / Implemented projections with positive, zero, and negative remaining days). Slice ring: `ChangeEventSliceTests` (full CE lifecycle, EW reduce/close, CE rejection, duplicate-reference rejection).
+
+Deferred (with the schema hooks already shipped):
+
+- **JCT lifecycle (canonical plan §F3 #2).** Aggregate enum extended in Sprint 8.
+- **Bidirectional CIMS RFI link (#3).** `SourceCimsRfiId` column nullable today; populated by Sprint 8's link command. CIMS-side back-link is a Pattern A POST that Sprint 8 wires.
+- **Schedule + budget impact publication (#4, #5).** Sprint 9; uses the F3 hook already left in the over-commitment evaluator (ADR-0009 §F3 hook) and a new Pattern B outbox.
+- **BSA golden-thread evidence (#6).** Sits on top of the audit columns already shipped via ADR-0004; Sprint 9 documents the evidence flow end-to-end.
+- **EWR → CE promotion.** Domain method to follow in Sprint 8 or 9; nothing to migrate.
+- **Manual browser demo + CIMS staging E2E.** Same standing deferrals as Sprint 6.
+
+---
+
 ## Backlog (CLAUDE.md §5 order — not negotiable)
 
 | Sprint(s) | Module | Scope summary |
@@ -167,5 +195,6 @@ Items here block no work in the current sprint, but need a call before they affe
 | 0008 | Commitment aggregate — single root with type discriminator | Accepted |
 | 0009 | Over-commitment guard — per-project policy enforced at Activate | Accepted |
 | 0010 | Commitment securities — single aggregate covering bonds, warranties, insurances | Accepted |
+| 0011 | ChangeEvent aggregate — single root, NEC4 skeleton, per-project SLA policy, read-side clocks | Accepted |
 
 ADRs live in [`docs/decisions/`](./decisions/). Use [`0000-template.md`](./decisions/0000-template.md).
