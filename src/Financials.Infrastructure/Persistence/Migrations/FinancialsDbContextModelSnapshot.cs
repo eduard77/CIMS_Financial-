@@ -266,6 +266,211 @@ namespace Financials.Infrastructure.Persistence.Migrations
                     b.ToTable("CommitmentLines", "fin");
                 });
 
+            modelBuilder.Entity("Financials.Domain.Commitments.CommitmentSecurity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CancellationReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("datetime2(7)");
+
+                    b.Property<string>("CancelledByUserId")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<Guid>("CommitmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2(7)");
+
+                    b.Property<string>("CreatedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateOnly>("EffectiveFrom")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly>("ExpiresOn")
+                        .HasColumnType("date");
+
+                    b.Property<Guid?>("IssuerCimsOrganisationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Reference")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("SupersededBySecurityId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2(7)");
+
+                    b.Property<string>("UpdatedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IssuerCimsOrganisationId")
+                        .HasDatabaseName("IX_CommitmentSecurities_Issuer");
+
+                    b.HasIndex("SupersededBySecurityId")
+                        .HasDatabaseName("IX_CommitmentSecurities_SupersededBy");
+
+                    b.HasIndex("CommitmentId", "Type", "Reference")
+                        .IsUnique()
+                        .HasDatabaseName("UX_CommitmentSecurities_Commitment_Type_Reference");
+
+                    b.ToTable("CommitmentSecurities", "fin");
+                });
+
+            modelBuilder.Entity("Financials.Domain.ChangeEvents.ChangeEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("AssessedAt")
+                        .HasColumnType("datetime2(7)");
+
+                    b.Property<string>("AssessedByUserId")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2(7)");
+
+                    b.Property<string>("CreatedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nchar(3)")
+                        .IsFixedLength();
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<DateTime?>("EarlyWarningClosedAt")
+                        .HasColumnType("datetime2(7)");
+
+                    b.Property<string>("EarlyWarningClosedByUserId")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime?>("EarlyWarningReducedAt")
+                        .HasColumnType("datetime2(7)");
+
+                    b.Property<string>("EarlyWarningReducedByUserId")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<Guid>("FinancialsProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ImplementedAt")
+                        .HasColumnType("datetime2(7)");
+
+                    b.Property<string>("ImplementedByUserId")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("NotifiedAt")
+                        .HasColumnType("datetime2(7)");
+
+                    b.Property<string>("NotifiedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime?>("QuotationSubmittedAt")
+                        .HasColumnType("datetime2(7)");
+
+                    b.Property<string>("QuotationSubmittedByUserId")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("Reference")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("RejectedAt")
+                        .HasColumnType("datetime2(7)");
+
+                    b.Property<string>("RejectedByUserId")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<Guid?>("SourceCimsRfiId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2(7)");
+
+                    b.Property<string>("UpdatedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SourceCimsRfiId")
+                        .HasDatabaseName("IX_ChangeEvents_SourceCimsRfi");
+
+                    b.HasIndex("FinancialsProjectId", "Type", "Reference")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ChangeEvents_Project_Type_Reference");
+
+                    b.ToTable("ChangeEvents", "fin");
+                });
+
             modelBuilder.Entity("Financials.Domain.Projects.FinancialsProject", b =>
                 {
                     b.Property<Guid>("Id")
@@ -661,11 +866,157 @@ namespace Financials.Infrastructure.Persistence.Migrations
                                 .HasForeignKey("ProjectCommercialConfigurationId");
                         });
 
+                    b.OwnsOne("Financials.Domain.Projects.OverCommitmentPolicy", "OverCommitmentPolicy", b1 =>
+                        {
+                            b1.Property<Guid>("ProjectCommercialConfigurationId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<int>("Mode")
+                                .HasColumnType("int")
+                                .HasColumnName("OverCommitmentMode");
+
+                            b1.HasKey("ProjectCommercialConfigurationId");
+
+                            b1.ToTable("ProjectCommercialConfigurations", "fin");
+
+                            b1.WithOwner()
+                                .HasForeignKey("ProjectCommercialConfigurationId");
+
+                            b1.OwnsOne("Financials.Domain.Common.Money", "Tolerance", b2 =>
+                                {
+                                    b2.Property<Guid>("OverCommitmentPolicyProjectCommercialConfigurationId")
+                                        .HasColumnType("uniqueidentifier");
+
+                                    b2.Property<decimal>("Amount")
+                                        .HasPrecision(19, 4)
+                                        .HasColumnType("decimal(19,4)")
+                                        .HasColumnName("OverCommitmentToleranceAmount");
+
+                                    b2.Property<string>("Currency")
+                                        .IsRequired()
+                                        .HasMaxLength(3)
+                                        .HasColumnType("nchar(3)")
+                                        .HasColumnName("OverCommitmentToleranceCurrency")
+                                        .IsFixedLength();
+
+                                    b2.HasKey("OverCommitmentPolicyProjectCommercialConfigurationId");
+
+                                    b2.ToTable("ProjectCommercialConfigurations", "fin");
+
+                                    b2.WithOwner()
+                                        .HasForeignKey("OverCommitmentPolicyProjectCommercialConfigurationId");
+                                });
+
+                            b1.Navigation("Tolerance")
+                                .IsRequired();
+                        });
+
+                    b.OwnsOne("Financials.Domain.Projects.Nec4SlaPolicy", "Nec4SlaPolicy", b1 =>
+                        {
+                            b1.Property<Guid>("ProjectCommercialConfigurationId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<int>("ContractorQuotationDays")
+                                .HasColumnType("int")
+                                .HasColumnName("Nec4ContractorQuotationDays");
+
+                            b1.Property<int>("EarlyWarningResponseDays")
+                                .HasColumnType("int")
+                                .HasColumnName("Nec4EarlyWarningResponseDays");
+
+                            b1.Property<int>("PmAcknowledgementDays")
+                                .HasColumnType("int")
+                                .HasColumnName("Nec4PmAcknowledgementDays");
+
+                            b1.Property<int>("PmAssessmentDays")
+                                .HasColumnType("int")
+                                .HasColumnName("Nec4PmAssessmentDays");
+
+                            b1.HasKey("ProjectCommercialConfigurationId");
+
+                            b1.ToTable("ProjectCommercialConfigurations", "fin");
+
+                            b1.WithOwner()
+                                .HasForeignKey("ProjectCommercialConfigurationId");
+                        });
+
+                    b.Navigation("Nec4SlaPolicy")
+                        .IsRequired();
+
+                    b.Navigation("OverCommitmentPolicy")
+                        .IsRequired();
+
                     b.Navigation("PaymentTerms")
                         .IsRequired();
 
                     b.Navigation("RetentionScheme")
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Financials.Domain.Commitments.CommitmentSecurity", b =>
+                {
+                    b.HasOne("Financials.Domain.Commitments.Commitment", null)
+                        .WithMany()
+                        .HasForeignKey("CommitmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.OwnsOne("Financials.Domain.Common.Money", "Value", b1 =>
+                        {
+                            b1.Property<Guid>("CommitmentSecurityId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<decimal>("Amount")
+                                .HasPrecision(19, 4)
+                                .HasColumnType("decimal(19,4)")
+                                .HasColumnName("ValueAmount");
+
+                            b1.Property<string>("Currency")
+                                .HasMaxLength(3)
+                                .HasColumnType("nchar(3)")
+                                .HasColumnName("ValueCurrency")
+                                .IsFixedLength();
+
+                            b1.HasKey("CommitmentSecurityId");
+
+                            b1.ToTable("CommitmentSecurities", "fin");
+
+                            b1.WithOwner()
+                                .HasForeignKey("CommitmentSecurityId");
+                        });
+                });
+
+            modelBuilder.Entity("Financials.Domain.ChangeEvents.ChangeEvent", b =>
+                {
+                    b.HasOne("Financials.Domain.Projects.FinancialsProject", null)
+                        .WithMany()
+                        .HasForeignKey("FinancialsProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.OwnsOne("Financials.Domain.Common.Money", "EstimatedNetEffect", b1 =>
+                        {
+                            b1.Property<Guid>("ChangeEventId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<decimal>("Amount")
+                                .HasPrecision(19, 4)
+                                .HasColumnType("decimal(19,4)")
+                                .HasColumnName("EstimatedNetEffectAmount");
+
+                            b1.Property<string>("Currency")
+                                .HasMaxLength(3)
+                                .HasColumnType("nchar(3)")
+                                .HasColumnName("EstimatedNetEffectCurrency")
+                                .IsFixedLength();
+
+                            b1.HasKey("ChangeEventId");
+
+                            b1.ToTable("ChangeEvents", "fin");
+
+                            b1.WithOwner()
+                                .HasForeignKey("ChangeEventId");
+                        });
                 });
 
             modelBuilder.Entity("Financials.Domain.Budgets.Budget", b =>

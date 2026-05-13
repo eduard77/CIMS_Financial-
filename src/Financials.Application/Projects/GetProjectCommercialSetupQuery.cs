@@ -1,5 +1,6 @@
 using Financials.Application.Cims;
 using Financials.Application.Common;
+using Financials.Domain.Projects;
 using MediatR;
 
 namespace Financials.Application.Projects;
@@ -12,7 +13,8 @@ public sealed record GetProjectCommercialSetupQuery(Guid FinancialsProjectId)
 /// commercial overlay (ADR-0005) with the resolved CIMS contract-template
 /// label. Tax regime, CBS, and role assignments are read separately by the
 /// UI from <see cref="ICimsClient"/> so each section reports its own
-/// loading/error state.
+/// loading/error state. From Sprint 6 also surfaces the F2 over-commitment
+/// policy (ADR-0009).
 /// </summary>
 public sealed record ProjectCommercialSetupDto(
     Guid Id,
@@ -24,7 +26,14 @@ public sealed record ProjectCommercialSetupDto(
     decimal RetentionReleaseAtDLPEndPercentage,
     int PaymentNetDays,
     int PaymentCycleDays,
-    int? PaymentDueDayOfMonth);
+    int? PaymentDueDayOfMonth,
+    OverCommitmentMode OverCommitmentMode,
+    decimal OverCommitmentToleranceAmount,
+    string OverCommitmentToleranceCurrency,
+    int Nec4PmAcknowledgementDays,
+    int Nec4ContractorQuotationDays,
+    int Nec4PmAssessmentDays,
+    int Nec4EarlyWarningResponseDays);
 
 public sealed class GetProjectCommercialSetupQueryHandler
     : IRequestHandler<GetProjectCommercialSetupQuery, Result<ProjectCommercialSetupDto?>>
@@ -80,7 +89,14 @@ public sealed class GetProjectCommercialSetupQueryHandler
             RetentionReleaseAtDLPEndPercentage: config.RetentionScheme.ReleaseAtDLPEndPercentage,
             PaymentNetDays: config.PaymentTerms.NetDays,
             PaymentCycleDays: config.PaymentTerms.PaymentCycleDays,
-            PaymentDueDayOfMonth: config.PaymentTerms.DueDayOfMonth);
+            PaymentDueDayOfMonth: config.PaymentTerms.DueDayOfMonth,
+            OverCommitmentMode: config.OverCommitmentPolicy.Mode,
+            OverCommitmentToleranceAmount: config.OverCommitmentPolicy.Tolerance.Amount,
+            OverCommitmentToleranceCurrency: config.OverCommitmentPolicy.Tolerance.Currency,
+            Nec4PmAcknowledgementDays: config.Nec4SlaPolicy.PmAcknowledgementDays,
+            Nec4ContractorQuotationDays: config.Nec4SlaPolicy.ContractorQuotationDays,
+            Nec4PmAssessmentDays: config.Nec4SlaPolicy.PmAssessmentDays,
+            Nec4EarlyWarningResponseDays: config.Nec4SlaPolicy.EarlyWarningResponseDays);
 
         return Result<ProjectCommercialSetupDto?>.Success(dto);
     }

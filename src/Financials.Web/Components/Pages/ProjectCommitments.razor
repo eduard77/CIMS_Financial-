@@ -71,6 +71,28 @@
                         <CellTemplate>@($"{context.Item.TotalValue.ToString("N2", _uk)} {context.Item.Currency}")</CellTemplate>
                     </TemplateColumn>
                     <PropertyColumn Property="x => x.LineCount" Title="Lines" />
+                    <TemplateColumn Title="Guard">
+                        <CellTemplate>
+                            @{
+                                var ev = _impacts.TryGetValue(context.Item.Id, out var e) ? e : null;
+                            }
+                            @if (ev is null)
+                            {
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">&mdash;</MudChip>
+                            }
+                            else if (!ev.HasBreaches)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Outlined">Clean</MudChip>
+                            }
+                            else
+                            {
+                                var color = ev.Mode == OverCommitmentMode.HardBlock ? Color.Error : Color.Warning;
+                                <MudChip T="string" Size="Size.Small" Color="@color" Variant="Variant.Filled">
+                                    @ev.Mode @($"{ev.Breaches.Count} breach(es)")
+                                </MudChip>
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
                     <TemplateColumn Title="Actions">
                         <CellTemplate>
                             @if (context.Item.Status == CommitmentStatus.Draft && _canWrite)
@@ -92,6 +114,129 @@
                 </Columns>
             </MudDataGrid>
         }
+
+        @if (_canReadSecurities)
+        {
+            <MudPaper Class="pa-4 mt-6" Elevation="1">
+                <MudText Typo="Typo.h6" GutterBottom="true">Bonds, warranties &amp; insurances</MudText>
+                @if (_securities is null)
+                {
+                    <MudProgressCircular Indeterminate="true" Size="Size.Small" />
+                }
+                else if (_securitiesError is not null)
+                {
+                    <MudAlert Severity="Severity.Error">@_securitiesError</MudAlert>
+                }
+                else if (_securities.Count == 0)
+                {
+                    <MudAlert Severity="Severity.Info">No securities recorded for this project.</MudAlert>
+                }
+                else
+                {
+                    <MudDataGrid T="CommitmentSecurityDto" Items="@_securities" Dense="true">
+                        <Columns>
+                            <PropertyColumn Property="x => x.Type" Title="Type" />
+                            <PropertyColumn Property="x => x.Reference" Title="Reference" />
+                            <PropertyColumn Property="x => x.IssuerName" Title="Issuer" />
+                            <TemplateColumn Title="Value">
+                                <CellTemplate>
+                                    @(context.Item.ValueAmount is null
+                                        ? "—"
+                                        : $"{context.Item.ValueAmount.Value.ToString("N2", _uk)} {context.Item.ValueCurrency}")
+                                </CellTemplate>
+                            </TemplateColumn>
+                            <PropertyColumn Property="x => x.ExpiresOn" Title="Expires" />
+                            <TemplateColumn Title="Alert">
+                                <CellTemplate>
+                                    @{
+                                        var color = context.Item.AlertLevel switch
+                                        {
+                                            CommitmentSecurityAlertLevel.Critical => Color.Error,
+                                            CommitmentSecurityAlertLevel.High => Color.Warning,
+                                            CommitmentSecurityAlertLevel.Warning => Color.Info,
+                                            CommitmentSecurityAlertLevel.Expired => Color.Dark,
+                                            _ => Color.Default,
+                                        };
+                                    }
+                                    <MudChip T="string" Size="Size.Small" Color="@color">
+                                        @context.Item.AlertLevel (@context.Item.RemainingDays d)
+                                    </MudChip>
+                                </CellTemplate>
+                            </TemplateColumn>
+                            <PropertyColumn Property="x => x.Status" Title="Status" />
+                            <TemplateColumn Title="Actions">
+                                <CellTemplate>
+                                    @if (_canWriteSecurities && context.Item.Status == CommitmentSecurityStatus.Active)
+                                    {
+                                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
+                                                   OnClick="@(() => CancelSecurityAsync(context.Item.Id))" Disabled="@_busy">
+                                            Cancel
+                                        </MudButton>
+                                    }
+                                </CellTemplate>
+                            </TemplateColumn>
+                        </Columns>
+                    </MudDataGrid>
+                }
+
+                @if (_canWriteSecurities && _commitments is { Count: > 0 })
+                {
+                    <MudDivider Class="my-4" />
+                    <MudText Typo="Typo.subtitle1" GutterBottom="true">Add security</MudText>
+                    <MudGrid>
+                        <MudItem xs="12" md="3">
+                            <MudSelect T="Guid?" @bind-Value="_sec.CommitmentId" Label="Commitment">
+                                @foreach (var c in _commitments.Where(c => c.Status != CommitmentStatus.Closed))
+                                {
+                                    <MudSelectItem T="Guid?" Value="c.Id">@($"{c.Type} {c.Reference}")</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" md="2">
+                            <MudSelect T="SecurityType" @bind-Value="_sec.Type" Label="Type">
+                                <MudSelectItem T="SecurityType" Value="SecurityType.Bond">Bond</MudSelectItem>
+                                <MudSelectItem T="SecurityType" Value="SecurityType.Warranty">Warranty</MudSelectItem>
+                                <MudSelectItem T="SecurityType" Value="SecurityType.Insurance">Insurance</MudSelectItem>
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" md="3">
+                            <MudTextField @bind-Value="_sec.Reference" Label="Reference" />
+                        </MudItem>
+                        <MudItem xs="12" md="2">
+                            <MudDatePicker @bind-Date="_sec.EffectiveFrom" Label="Effective from"
+                                           Culture="@_uk" DateFormat="dd/MM/yyyy" />
+                        </MudItem>
+                        <MudItem xs="12" md="2">
+                            <MudDatePicker @bind-Date="_sec.ExpiresOn" Label="Expires on"
+                                           Culture="@_uk" DateFormat="dd/MM/yyyy" />
+                        </MudItem>
+                        <MudItem xs="12" md="3">
+                            <MudSelect T="Guid?" @bind-Value="_sec.IssuerCimsOrganisationId" Label="Issuer (CIMS)" Clearable="true">
+                                @foreach (var org in _organisations ?? Array.Empty<CimsOrganisationSummary>())
+                                {
+                                    <MudSelectItem T="Guid?" Value="org.Id">@($"{org.OrganisationType} — {org.Name}")</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" md="3">
+                            <MudNumericField T="decimal?" @bind-Value="_sec.ValueAmount" Label="Value (optional)"
+                                             Format="N2" Culture="@_uk" />
+                        </MudItem>
+                        <MudItem xs="12" md="2">
+                            <MudTextField @bind-Value="_sec.ValueCurrency" Label="Currency" MaxLength="3" />
+                        </MudItem>
+                    </MudGrid>
+                    @if (_securityError is not null)
+                    {
+                        <MudAlert Severity="Severity.Error" Class="mt-2">@_securityError</MudAlert>
+                    }
+                    <MudButton Class="mt-3" Variant="Variant.Filled" Color="Color.Primary"
+                               OnClick="AddSecurityAsync"
+                               Disabled="@(!CanAddSecurity() || _busy)"
+                               StartIcon="@Icons.Material.Filled.Add">Add security</MudButton>
+                }
+            </MudPaper>
+        }
     }
 </MudContainer>
 
@@ -104,16 +249,25 @@
     private string? _loadError;
     private bool _busy;
     private bool _canWrite;
+    private bool _canReadSecurities;
+    private bool _canWriteSecurities;
 
     private IReadOnlyList<CommitmentDto>? _commitments;
     private IReadOnlyList<CimsOrganisationSummary>? _organisations;
+    private IReadOnlyList<CommitmentSecurityDto>? _securities;
+    private string? _securitiesError;
+    private string? _securityError;
+    private readonly Dictionary<Guid, OverCommitmentEvaluation> _impacts = new();
 
     private RaiseForm _form = new();
     private string? _raiseError;
+    private SecurityForm _sec = new();
 
     protected override async Task OnInitializedAsync()
     {
         _canWrite = Permissions.Has(AuthorizationPolicies.CommitmentsWrite);
+        _canReadSecurities = Permissions.Has(AuthorizationPolicies.CommitmentsSecuritiesRead);
+        _canWriteSecurities = Permissions.Has(AuthorizationPolicies.CommitmentsSecuritiesWrite);
         await LoadAsync();
     }
 
@@ -144,7 +298,42 @@
             }
         }
 
+        await RefreshImpactsAsync();
+
+        if (_canReadSecurities)
+        {
+            await LoadSecuritiesAsync();
+        }
+
         _loading = false;
+    }
+
+    private async Task RefreshImpactsAsync()
+    {
+        _impacts.Clear();
+        if (_commitments is null) return;
+        foreach (var c in _commitments)
+        {
+            var ev = await Mediator.Send(new EvaluateCommitmentImpactQuery(c.Id));
+            if (ev.IsSuccess)
+            {
+                _impacts[c.Id] = ev.Value;
+            }
+        }
+    }
+
+    private async Task LoadSecuritiesAsync()
+    {
+        _securitiesError = null;
+        var result = await Mediator.Send(new ListCommitmentSecuritiesQuery(FinancialsProjectId));
+        if (result.IsSuccess)
+        {
+            _securities = result.Value;
+        }
+        else
+        {
+            _securitiesError = result.Error;
+        }
     }
 
     private bool CanRaise() =>
@@ -216,5 +405,72 @@
         public CommitmentType Type { get; set; } = CommitmentType.Subcontract;
         public string Reference { get; set; } = string.Empty;
         public Guid? CounterpartyId { get; set; }
+    }
+
+    private bool CanAddSecurity() =>
+        _canWriteSecurities
+        && _sec.CommitmentId is { }
+        && _sec.Type != SecurityType.Unknown
+        && !string.IsNullOrWhiteSpace(_sec.Reference)
+        && _sec.EffectiveFrom is { }
+        && _sec.ExpiresOn is { }
+        && _sec.ExpiresOn > _sec.EffectiveFrom
+        && (_sec.ValueAmount is null) == string.IsNullOrWhiteSpace(_sec.ValueCurrency);
+
+    private async Task AddSecurityAsync()
+    {
+        if (_sec.CommitmentId is null || _sec.EffectiveFrom is null || _sec.ExpiresOn is null) return;
+
+        _busy = true;
+        _securityError = null;
+        var result = await Mediator.Send(new AddCommitmentSecurityCommand(
+            _sec.CommitmentId.Value,
+            _sec.Type,
+            _sec.Reference,
+            DateOnly.FromDateTime(_sec.EffectiveFrom.Value),
+            DateOnly.FromDateTime(_sec.ExpiresOn.Value),
+            _sec.IssuerCimsOrganisationId,
+            _sec.ValueAmount,
+            string.IsNullOrWhiteSpace(_sec.ValueCurrency) ? null : _sec.ValueCurrency.ToUpperInvariant()));
+        _busy = false;
+        if (result.IsSuccess)
+        {
+            Snackbar.Add($"{_sec.Type} {_sec.Reference} added.", MudBlazor.Severity.Success);
+            _sec = new SecurityForm();
+            await LoadSecuritiesAsync();
+        }
+        else
+        {
+            _securityError = result.Error;
+        }
+    }
+
+    private async Task CancelSecurityAsync(Guid securityId)
+    {
+        _busy = true;
+        var result = await Mediator.Send(new CancelCommitmentSecurityCommand(
+            securityId, "Cancelled from UI."));
+        _busy = false;
+        if (result.IsSuccess)
+        {
+            Snackbar.Add("Security cancelled.", MudBlazor.Severity.Success);
+            await LoadSecuritiesAsync();
+        }
+        else
+        {
+            _securitiesError = result.Error;
+        }
+    }
+
+    private sealed class SecurityForm
+    {
+        public Guid? CommitmentId { get; set; }
+        public SecurityType Type { get; set; } = SecurityType.Bond;
+        public string Reference { get; set; } = string.Empty;
+        public DateTime? EffectiveFrom { get; set; } = DateTime.UtcNow.Date;
+        public DateTime? ExpiresOn { get; set; } = DateTime.UtcNow.Date.AddYears(1);
+        public Guid? IssuerCimsOrganisationId { get; set; }
+        public decimal? ValueAmount { get; set; }
+        public string? ValueCurrency { get; set; }
     }
 }

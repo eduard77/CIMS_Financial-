@@ -1,0 +1,107 @@
+@page "/projects/{financialsProjectId:guid}/reconciliation"
+@attribute [Authorize(Policy = AuthorizationPolicies.ReconciliationRead)]
+@inject IMediator Mediator
+@rendermode InteractiveServer
+
+<PageTitle>Reconciliation &mdash; Financials</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
+    <MudText Typo="Typo.h4" GutterBottom="true">Budget vs commitments reconciliation</MudText>
+    <MudText Typo="Typo.body2" Class="mb-4">
+        F2 #4: <em>committed + uncommitted = budget + approved changes</em>.
+        Active commitments only; approved-change values appear once F3 ships.
+    </MudText>
+
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+    }
+    else if (_error is not null)
+    {
+        <MudAlert Severity="Severity.Error">@_error</MudAlert>
+    }
+    else if (_report is null)
+    {
+        <MudAlert Severity="Severity.Info">No reconciliation data yet for this project.</MudAlert>
+    }
+    else
+    {
+        <MudAlert Severity="@(_report.InvariantHolds ? Severity.Success : Severity.Error)" Class="mb-4">
+            @if (_report.InvariantHolds)
+            {
+                <text>
+                    Reconciliation holds:
+                    @FormatMoney(_report.CommittedTotal) committed +
+                    @FormatMoney(_report.UncommittedTotal) uncommitted =
+                    @FormatMoney(_report.BudgetApprovedTotal + _report.ApprovedChangesTotal) budget envelope.
+                </text>
+            }
+            else
+            {
+                <text>
+                    Reconciliation invariant broken &mdash; check for currency mismatches
+                    or stale data. Committed + uncommitted: @FormatMoney(_report.CommittedTotal + _report.UncommittedTotal);
+                    budget envelope: @FormatMoney(_report.BudgetApprovedTotal + _report.ApprovedChangesTotal).
+                </text>
+            }
+        </MudAlert>
+
+        @if (_report.Rows.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info">No budget lines or active commitments yet.</MudAlert>
+        }
+        else
+        {
+            <MudDataGrid T="BudgetReconciliationRow" Items="@_report.Rows" Dense="true" Hover="true">
+                <Columns>
+                    <PropertyColumn Property="x => x.CimsCostCodeId" Title="CIMS cost code" />
+                    <TemplateColumn Title="Budget approved">
+                        <CellTemplate>@FormatMoney(context.Item.BudgetApproved)</CellTemplate>
+                    </TemplateColumn>
+                    <TemplateColumn Title="Approved changes (F3)">
+                        <CellTemplate>@FormatMoney(context.Item.ApprovedChanges)</CellTemplate>
+                    </TemplateColumn>
+                    <TemplateColumn Title="Committed">
+                        <CellTemplate>@FormatMoney(context.Item.Committed)</CellTemplate>
+                    </TemplateColumn>
+                    <TemplateColumn Title="Uncommitted">
+                        <CellTemplate>
+                            <span style="@(context.Item.Uncommitted < 0 ? "color:var(--mud-palette-error);" : null)">
+                                @FormatMoney(context.Item.Uncommitted)
+                            </span>
+                        </CellTemplate>
+                    </TemplateColumn>
+                </Columns>
+            </MudDataGrid>
+        }
+    }
+</MudContainer>
+
+@code {
+    [Parameter] public Guid FinancialsProjectId { get; set; }
+
+    private readonly CultureInfo _uk = CultureInfo.GetCultureInfo("en-GB");
+
+    private bool _loading = true;
+    private string? _error;
+    private BudgetReconciliationReport? _report;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var result = await Mediator.Send(new GetBudgetReconciliationQuery(FinancialsProjectId));
+        if (result.IsSuccess)
+        {
+            _report = result.Value;
+        }
+        else
+        {
+            _error = result.Error;
+        }
+        _loading = false;
+    }
+
+    private string FormatMoney(decimal amount) =>
+        _report is null
+            ? amount.ToString("N2", _uk)
+            : $"{amount.ToString("N2", _uk)} {_report.Currency}";
+}

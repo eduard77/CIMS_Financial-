@@ -2,7 +2,7 @@
 
 Commercial management for UK construction. One of four independent products that together form the Genera Systems platform.
 
-> **Status:** Sprint 1 — F0 vertical slice (Project Setup). A logged-in user can pick a CIMS project, confirm it for Financials, and see the confirmed list. Real Pattern A `CimsClient` (typed `HttpClient` + Polly + 60s cache + bearer forwarding) per ADR-0002; CIMS-issued JWT validated locally via OIDC discovery per ADR-0003; audit columns stamped by interceptor per ADR-0004.
+> **Status:** Sprint 7 — F3 NEC4 skeleton delivered. NEC4 Early Warning Register + Compensation Event lifecycles ship on a single `ChangeEvent` aggregate (ADR-0011) with read-side SLA clocks against a per-project `Nec4SlaPolicy` (configurable on the Setup page). Schema hooks for the Sprint 8 CIMS RFI back-link and the Sprint 9 schedule/budget-impact publication are in place. F0 + F1 + F2 fully done; F3 NEC4 portion of #1 done.
 > See [docs/sprint-plan.md](./docs/sprint-plan.md) for current sprint and roadmap.
 
 ---
@@ -218,4 +218,4 @@ Issues, security reports, and commercial enquiries: see CONTACT.md (when publish
 
 ---
 
-*This README reflects the repository as of Sprint 1 (F0 Project Setup vertical slice). Updated each sprint with anything a new contributor or future Claude Code session needs to know on day one.*
+*This README reflects the repository as of Sprint 7 (F3 NEC4 skeleton — change events + read-side SLA clocks). Updated each sprint with anything a new contributor or future Claude Code session needs to know on day one.*

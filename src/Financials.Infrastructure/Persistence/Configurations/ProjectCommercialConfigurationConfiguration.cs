@@ -61,6 +61,45 @@ internal sealed class ProjectCommercialConfigurationConfiguration
                 .HasColumnName("PaymentDueDayOfMonth");
         });
 
+        builder.OwnsOne(x => x.OverCommitmentPolicy, policy =>
+        {
+            policy.Property(p => p.Mode)
+                .HasColumnName("OverCommitmentMode")
+                .HasConversion<int>()
+                .IsRequired();
+            policy.OwnsOne(p => p.Tolerance, tolerance =>
+            {
+                tolerance.Property(t => t.Amount)
+                    .HasColumnName("OverCommitmentToleranceAmount")
+                    .HasPrecision(19, 4)
+                    .IsRequired();
+                tolerance.Property(t => t.Currency)
+                    .HasColumnName("OverCommitmentToleranceCurrency")
+                    .HasMaxLength(3)
+                    .IsFixedLength()
+                    .IsRequired();
+            });
+            policy.Navigation(p => p.Tolerance).IsRequired();
+        });
+        builder.Navigation(x => x.OverCommitmentPolicy).IsRequired();
+
+        builder.OwnsOne(x => x.Nec4SlaPolicy, sla =>
+        {
+            sla.Property(p => p.PmAcknowledgementDays)
+                .HasColumnName("Nec4PmAcknowledgementDays")
+                .IsRequired();
+            sla.Property(p => p.ContractorQuotationDays)
+                .HasColumnName("Nec4ContractorQuotationDays")
+                .IsRequired();
+            sla.Property(p => p.PmAssessmentDays)
+                .HasColumnName("Nec4PmAssessmentDays")
+                .IsRequired();
+            sla.Property(p => p.EarlyWarningResponseDays)
+                .HasColumnName("Nec4EarlyWarningResponseDays")
+                .IsRequired();
+        });
+        builder.Navigation(x => x.Nec4SlaPolicy).IsRequired();
+
         builder.Property(x => x.RowVersion)
             .IsRowVersion()
             .IsConcurrencyToken();
