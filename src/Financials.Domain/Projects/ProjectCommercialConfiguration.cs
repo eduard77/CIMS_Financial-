@@ -28,6 +28,13 @@ public sealed class ProjectCommercialConfiguration : IAuditable
     /// </summary>
     public OverCommitmentPolicy OverCommitmentPolicy { get; private set; } = null!;
 
+    /// <summary>
+    /// F3 NEC4 statutory clock periods per ADR-0011. Defaults to the NEC4 ECC
+    /// standard form; the QS can override per project to reflect contract
+    /// Options or Z-clauses.
+    /// </summary>
+    public Nec4SlaPolicy Nec4SlaPolicy { get; private set; } = null!;
+
     [SuppressMessage(
         "Performance",
         "CA1819:Properties should not return arrays",
@@ -51,7 +58,8 @@ public sealed class ProjectCommercialConfiguration : IAuditable
         Guid contractTemplateId,
         RetentionScheme retention,
         PaymentTerms paymentTerms,
-        OverCommitmentPolicy? overCommitmentPolicy = null)
+        OverCommitmentPolicy? overCommitmentPolicy = null,
+        Nec4SlaPolicy? nec4SlaPolicy = null)
     {
         if (financialsProjectId == Guid.Empty)
         {
@@ -78,6 +86,7 @@ public sealed class ProjectCommercialConfiguration : IAuditable
             RetentionScheme = retention,
             PaymentTerms = paymentTerms,
             OverCommitmentPolicy = overCommitmentPolicy ?? OverCommitmentPolicy.Default(),
+            Nec4SlaPolicy = nec4SlaPolicy ?? Nec4SlaPolicy.Default(),
         };
     }
 
@@ -85,7 +94,8 @@ public sealed class ProjectCommercialConfiguration : IAuditable
         Guid contractTemplateId,
         RetentionScheme retention,
         PaymentTerms paymentTerms,
-        OverCommitmentPolicy? overCommitmentPolicy = null)
+        OverCommitmentPolicy? overCommitmentPolicy = null,
+        Nec4SlaPolicy? nec4SlaPolicy = null)
     {
         if (contractTemplateId == Guid.Empty)
         {
@@ -103,6 +113,10 @@ public sealed class ProjectCommercialConfiguration : IAuditable
         if (overCommitmentPolicy is not null)
         {
             OverCommitmentPolicy = overCommitmentPolicy;
+        }
+        if (nec4SlaPolicy is not null)
+        {
+            Nec4SlaPolicy = nec4SlaPolicy;
         }
     }
 
