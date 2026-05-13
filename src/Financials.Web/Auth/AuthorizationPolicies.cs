@@ -31,4 +31,13 @@ public static class AuthorizationPolicies
 
     /// <summary>F2 — raise / add lines to / activate / close commitments.</summary>
     public const string CommitmentsWrite = "financials.commitments.write";
+
+    /// <summary>F2 #3 — read bonds / warranties / insurances.</summary>
+    public const string CommitmentsSecuritiesRead = "financials.commitments.securities.read";
+
+    /// <summary>F2 #3 — add / cancel bonds / warranties / insurances.</summary>
+    public const string CommitmentsSecuritiesWrite = "financials.commitments.securities.write";
+
+    /// <summary>F2 #4 — read the budget vs commitments reconciliation dashboard.</summary>
+    public const string ReconciliationRead = "financials.reconciliation.read";
 }

@@ -29,6 +29,9 @@ public static class FinancialsRolePermissions
                 AuthorizationPolicies.BudgetApprove,
                 AuthorizationPolicies.CommitmentsRead,
                 AuthorizationPolicies.CommitmentsWrite,
+                AuthorizationPolicies.CommitmentsSecuritiesRead,
+                AuthorizationPolicies.CommitmentsSecuritiesWrite,
+                AuthorizationPolicies.ReconciliationRead,
             },
             [FinancialsRole.QuantitySurveyor] = new[]
             {
@@ -38,6 +41,9 @@ public static class FinancialsRolePermissions
                 AuthorizationPolicies.BudgetWrite,
                 AuthorizationPolicies.CommitmentsRead,
                 AuthorizationPolicies.CommitmentsWrite,
+                AuthorizationPolicies.CommitmentsSecuritiesRead,
+                AuthorizationPolicies.CommitmentsSecuritiesWrite,
+                AuthorizationPolicies.ReconciliationRead,
             },
             [FinancialsRole.CostEngineer] = new[]
             {
@@ -46,6 +52,8 @@ public static class FinancialsRolePermissions
                 AuthorizationPolicies.BudgetRead,
                 AuthorizationPolicies.BudgetWrite,
                 AuthorizationPolicies.CommitmentsRead,
+                AuthorizationPolicies.CommitmentsSecuritiesRead,
+                AuthorizationPolicies.ReconciliationRead,
             },
             [FinancialsRole.Approver] = new[]
             {
@@ -54,6 +62,8 @@ public static class FinancialsRolePermissions
                 AuthorizationPolicies.BudgetRead,
                 AuthorizationPolicies.BudgetApprove,
                 AuthorizationPolicies.CommitmentsRead,
+                AuthorizationPolicies.CommitmentsSecuritiesRead,
+                AuthorizationPolicies.ReconciliationRead,
             },
             [FinancialsRole.Viewer] = new[]
             {
@@ -61,6 +71,8 @@ public static class FinancialsRolePermissions
                 AuthorizationPolicies.SetupRead,
                 AuthorizationPolicies.BudgetRead,
                 AuthorizationPolicies.CommitmentsRead,
+                AuthorizationPolicies.CommitmentsSecuritiesRead,
+                AuthorizationPolicies.ReconciliationRead,
             },
         };
 }
