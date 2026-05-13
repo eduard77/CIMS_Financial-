@@ -21,6 +21,13 @@ public sealed class ProjectCommercialConfiguration : IAuditable
 
     public PaymentTerms PaymentTerms { get; private set; } = null!;
 
+    /// <summary>
+    /// F2 #2 over-commitment guard policy (ADR-0009). Defaults to soft
+    /// <see cref="OverCommitmentMode.Warn"/> at creation; editable via the same
+    /// setup command.
+    /// </summary>
+    public OverCommitmentPolicy OverCommitmentPolicy { get; private set; } = null!;
+
     [SuppressMessage(
         "Performance",
         "CA1819:Properties should not return arrays",
@@ -43,7 +50,8 @@ public sealed class ProjectCommercialConfiguration : IAuditable
         Guid financialsProjectId,
         Guid contractTemplateId,
         RetentionScheme retention,
-        PaymentTerms paymentTerms)
+        PaymentTerms paymentTerms,
+        OverCommitmentPolicy? overCommitmentPolicy = null)
     {
         if (financialsProjectId == Guid.Empty)
         {
@@ -69,13 +77,15 @@ public sealed class ProjectCommercialConfiguration : IAuditable
             ContractTemplateId = contractTemplateId,
             RetentionScheme = retention,
             PaymentTerms = paymentTerms,
+            OverCommitmentPolicy = overCommitmentPolicy ?? OverCommitmentPolicy.Default(),
         };
     }
 
     public void UpdateConfiguration(
         Guid contractTemplateId,
         RetentionScheme retention,
-        PaymentTerms paymentTerms)
+        PaymentTerms paymentTerms,
+        OverCommitmentPolicy? overCommitmentPolicy = null)
     {
         if (contractTemplateId == Guid.Empty)
         {
@@ -90,5 +100,21 @@ public sealed class ProjectCommercialConfiguration : IAuditable
         ContractTemplateId = contractTemplateId;
         RetentionScheme = retention;
         PaymentTerms = paymentTerms;
+        if (overCommitmentPolicy is not null)
+        {
+            OverCommitmentPolicy = overCommitmentPolicy;
+        }
+    }
+
+    /// <summary>
+    /// Idempotent overwrite of the over-commitment policy (ADR-0009). Used by
+    /// future flows that change only the guard without touching contract /
+    /// retention / payment terms; the F0 setup command updates all four
+    /// together via <see cref="UpdateConfiguration"/>.
+    /// </summary>
+    public void SetOverCommitmentPolicy(OverCommitmentPolicy policy)
+    {
+        ArgumentNullException.ThrowIfNull(policy);
+        OverCommitmentPolicy = policy;
     }
 }
