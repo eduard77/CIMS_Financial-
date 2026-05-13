@@ -1,5 +1,6 @@
 using Financials.Application.Persistence;
 using Financials.Domain.Budgets;
+using Financials.Domain.ChangeEvents;
 using Financials.Domain.Commitments;
 using Financials.Domain.Projects;
 using Financials.Infrastructure.Inbox;
@@ -26,6 +27,8 @@ public class FinancialsDbContext : DbContext, IFinancialsDbContext
     public DbSet<Commitment> Commitments => Set<Commitment>();
 
     public DbSet<CommitmentSecurity> CommitmentSecurities => Set<CommitmentSecurity>();
+
+    public DbSet<ChangeEvent> ChangeEvents => Set<ChangeEvent>();
 
     internal DbSet<InboxEvent> InboxEvents => Set<InboxEvent>();
 

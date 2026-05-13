@@ -1,4 +1,5 @@
 using Financials.Application.Budgets;
+using Financials.Application.ChangeEvents;
 using Financials.Application.Cims;
 using Financials.Application.Commitments;
 using Financials.Application.Commitments.Securities;
@@ -6,6 +7,7 @@ using Financials.Application.Common;
 using Financials.Application.Persistence;
 using Financials.Application.Projects;
 using Financials.Infrastructure.Budgets;
+using Financials.Infrastructure.ChangeEvents;
 using Financials.Infrastructure.Cims;
 using Financials.Infrastructure.Commitments;
 using Financials.Infrastructure.Common;
@@ -49,6 +51,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IBudgetRepository, BudgetRepository>();
         services.AddScoped<ICommitmentRepository, CommitmentRepository>();
         services.AddScoped<ICommitmentSecurityRepository, CommitmentSecurityRepository>();
+        services.AddScoped<IChangeEventRepository, ChangeEventRepository>();
 
         services.AddCimsClient(configuration);
 

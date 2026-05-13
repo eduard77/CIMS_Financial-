@@ -83,6 +83,23 @@ internal sealed class ProjectCommercialConfigurationConfiguration
         });
         builder.Navigation(x => x.OverCommitmentPolicy).IsRequired();
 
+        builder.OwnsOne(x => x.Nec4SlaPolicy, sla =>
+        {
+            sla.Property(p => p.PmAcknowledgementDays)
+                .HasColumnName("Nec4PmAcknowledgementDays")
+                .IsRequired();
+            sla.Property(p => p.ContractorQuotationDays)
+                .HasColumnName("Nec4ContractorQuotationDays")
+                .IsRequired();
+            sla.Property(p => p.PmAssessmentDays)
+                .HasColumnName("Nec4PmAssessmentDays")
+                .IsRequired();
+            sla.Property(p => p.EarlyWarningResponseDays)
+                .HasColumnName("Nec4EarlyWarningResponseDays")
+                .IsRequired();
+        });
+        builder.Navigation(x => x.Nec4SlaPolicy).IsRequired();
+
         builder.Property(x => x.RowVersion)
             .IsRowVersion()
             .IsConcurrencyToken();
