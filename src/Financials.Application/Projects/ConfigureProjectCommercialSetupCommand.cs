@@ -25,7 +25,11 @@ public sealed record ConfigureProjectCommercialSetupCommand(
     int? PaymentDueDayOfMonth,
     OverCommitmentMode OverCommitmentMode = OverCommitmentMode.Warn,
     decimal OverCommitmentToleranceAmount = 0m,
-    string OverCommitmentToleranceCurrency = Money.DefaultCurrency)
+    string OverCommitmentToleranceCurrency = Money.DefaultCurrency,
+    int Nec4PmAcknowledgementDays = 7,
+    int Nec4ContractorQuotationDays = 21,
+    int Nec4PmAssessmentDays = 14,
+    int Nec4EarlyWarningResponseDays = 7)
     : IRequest<Result<Guid>>;
 
 public sealed class ConfigureProjectCommercialSetupValidator
@@ -49,6 +53,10 @@ public sealed class ConfigureProjectCommercialSetupValidator
         RuleFor(x => x.OverCommitmentMode).IsInEnum();
         RuleFor(x => x.OverCommitmentToleranceAmount).GreaterThanOrEqualTo(0m);
         RuleFor(x => x.OverCommitmentToleranceCurrency).NotEmpty().Length(3);
+        RuleFor(x => x.Nec4PmAcknowledgementDays).InclusiveBetween(1, 365);
+        RuleFor(x => x.Nec4ContractorQuotationDays).InclusiveBetween(1, 365);
+        RuleFor(x => x.Nec4PmAssessmentDays).InclusiveBetween(1, 365);
+        RuleFor(x => x.Nec4EarlyWarningResponseDays).InclusiveBetween(1, 365);
     }
 }
 
@@ -115,6 +123,7 @@ public sealed class ConfigureProjectCommercialSetupCommandHandler
             request.PaymentDueDayOfMonth);
 
         OverCommitmentPolicy policy;
+        Nec4SlaPolicy slaPolicy;
         try
         {
             policy = OverCommitmentPolicy.Create(
@@ -122,6 +131,11 @@ public sealed class ConfigureProjectCommercialSetupCommandHandler
                 new Money(
                     request.OverCommitmentToleranceAmount,
                     request.OverCommitmentToleranceCurrency));
+            slaPolicy = Nec4SlaPolicy.Create(
+                request.Nec4PmAcknowledgementDays,
+                request.Nec4ContractorQuotationDays,
+                request.Nec4PmAssessmentDays,
+                request.Nec4EarlyWarningResponseDays);
         }
         catch (Exception ex) when (ex is ArgumentException or ArgumentOutOfRangeException)
         {
@@ -135,13 +149,14 @@ public sealed class ConfigureProjectCommercialSetupCommandHandler
                 request.ContractTemplateId,
                 retention,
                 paymentTerms,
-                policy);
+                policy,
+                slaPolicy);
             _configs.Add(config);
             await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             return Result<Guid>.Success(config.Id);
         }
 
-        existing.UpdateConfiguration(request.ContractTemplateId, retention, paymentTerms, policy);
+        existing.UpdateConfiguration(request.ContractTemplateId, retention, paymentTerms, policy, slaPolicy);
         await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         return Result<Guid>.Success(existing.Id);
     }

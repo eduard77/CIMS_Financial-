@@ -29,7 +29,11 @@ public sealed record ProjectCommercialSetupDto(
     int? PaymentDueDayOfMonth,
     OverCommitmentMode OverCommitmentMode,
     decimal OverCommitmentToleranceAmount,
-    string OverCommitmentToleranceCurrency);
+    string OverCommitmentToleranceCurrency,
+    int Nec4PmAcknowledgementDays,
+    int Nec4ContractorQuotationDays,
+    int Nec4PmAssessmentDays,
+    int Nec4EarlyWarningResponseDays);
 
 public sealed class GetProjectCommercialSetupQueryHandler
     : IRequestHandler<GetProjectCommercialSetupQuery, Result<ProjectCommercialSetupDto?>>
@@ -88,7 +92,11 @@ public sealed class GetProjectCommercialSetupQueryHandler
             PaymentDueDayOfMonth: config.PaymentTerms.DueDayOfMonth,
             OverCommitmentMode: config.OverCommitmentPolicy.Mode,
             OverCommitmentToleranceAmount: config.OverCommitmentPolicy.Tolerance.Amount,
-            OverCommitmentToleranceCurrency: config.OverCommitmentPolicy.Tolerance.Currency);
+            OverCommitmentToleranceCurrency: config.OverCommitmentPolicy.Tolerance.Currency,
+            Nec4PmAcknowledgementDays: config.Nec4SlaPolicy.PmAcknowledgementDays,
+            Nec4ContractorQuotationDays: config.Nec4SlaPolicy.ContractorQuotationDays,
+            Nec4PmAssessmentDays: config.Nec4SlaPolicy.PmAssessmentDays,
+            Nec4EarlyWarningResponseDays: config.Nec4SlaPolicy.EarlyWarningResponseDays);
 
         return Result<ProjectCommercialSetupDto?>.Success(dto);
     }
