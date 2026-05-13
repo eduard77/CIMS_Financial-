@@ -65,7 +65,7 @@ public sealed class GetBudgetReconciliationQueryHandler
             .ConfigureAwait(false);
 
         var currency = budget?.Currency
-            ?? commitments.FirstOrDefault()?.Currency
+            ?? (commitments.Count > 0 ? commitments[0].Currency : null)
             ?? Money.DefaultCurrency;
 
         var budgetByCode = AggregateBudget(budget, currency);

@@ -1,6 +1,7 @@
 using System.Globalization;
 using Financials.Application.Common;
 using Financials.Application.Persistence;
+using Financials.Domain.Common;
 using Financials.Domain.Projects;
 using FluentValidation;
 using MediatR;
@@ -18,7 +19,7 @@ public sealed class ActivateCommitmentValidator : AbstractValidator<ActivateComm
     }
 }
 
-public sealed class ActivateCommitmentCommandHandler : IRequestHandler<ActivateCommitmentCommand, Result>
+public sealed partial class ActivateCommitmentCommandHandler : IRequestHandler<ActivateCommitmentCommand, Result>
 {
     private readonly ICommitmentRepository _commitments;
     private readonly IFinancialsDbContext _db;
@@ -90,10 +91,8 @@ public sealed class ActivateCommitmentCommandHandler : IRequestHandler<ActivateC
     {
         foreach (var breach in evaluation.Breaches)
         {
-            _logger.LogWarning(
-                "Over-commitment (Warn mode) on commitment {CommitmentReference}: " +
-                "cost code {CostCodeId} budget {BudgetApproved} + tolerance {Tolerance} " +
-                "vs other-active {OtherActive} + this {ThisCommitment} (breach {BreachAmount}).",
+            LogOverCommitmentBreach(
+                _logger,
                 commitmentReference,
                 breach.CimsCostCodeId,
                 breach.BudgetApproved,
@@ -103,6 +102,22 @@ public sealed class ActivateCommitmentCommandHandler : IRequestHandler<ActivateC
                 breach.BreachAmount);
         }
     }
+
+    [LoggerMessage(
+        EventId = 1,
+        Level = LogLevel.Warning,
+        Message = "Over-commitment (Warn mode) on commitment {CommitmentReference}: " +
+                  "cost code {CostCodeId} budget {BudgetApproved} + tolerance {Tolerance} " +
+                  "vs other-active {OtherActive} + this {ThisCommitment} (breach {BreachAmount}).")]
+    private static partial void LogOverCommitmentBreach(
+        ILogger logger,
+        string commitmentReference,
+        Guid costCodeId,
+        Money budgetApproved,
+        Money tolerance,
+        Money otherActive,
+        Money thisCommitment,
+        Money breachAmount);
 
     private static string BuildBreachMessage(OverCommitmentEvaluation evaluation, bool hardBlocked)
     {
