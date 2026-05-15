@@ -187,6 +187,104 @@ public sealed class F1ImportSliceTests : IAsyncLifetime
         count.Should().Be(0);
     }
 
+    [Fact]
+    public async Task Inbox_dispatcher_rejects_missing_signature_header()
+    {
+        var (envelope, _) = BuildSignedEnvelope(new
+        {
+            EventId = Guid.NewGuid(),
+            EventType = ScheduleActivityCostLoadedV1.EventType,
+            OccurredAt = DateTime.UtcNow,
+            Payload = new { },
+        });
+
+        await using var scope = _provider!.CreateAsyncScope();
+        var dispatcher = scope.ServiceProvider.GetRequiredService<IInboxEventDispatcher>();
+
+        var result = await dispatcher.DispatchAsync(envelope, signatureHeader: null, CancellationToken.None);
+
+        result.Outcome.Should().Be(InboxDispatchOutcome.BadSignature);
+    }
+
+    [Fact]
+    public async Task Inbox_dispatcher_rejects_non_base64_signature_header()
+    {
+        var (envelope, _) = BuildSignedEnvelope(new
+        {
+            EventId = Guid.NewGuid(),
+            EventType = ScheduleActivityCostLoadedV1.EventType,
+            OccurredAt = DateTime.UtcNow,
+            Payload = new { },
+        });
+
+        await using var scope = _provider!.CreateAsyncScope();
+        var dispatcher = scope.ServiceProvider.GetRequiredService<IInboxEventDispatcher>();
+
+        var result = await dispatcher.DispatchAsync(envelope, "<not base64>", CancellationToken.None);
+
+        result.Outcome.Should().Be(InboxDispatchOutcome.BadSignature);
+    }
+
+    [Fact]
+    public async Task Inbox_dispatcher_returns_BadEnvelope_for_malformed_json_with_valid_signature()
+    {
+        const string Body = "{ not valid json";
+        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(WebhookSecret));
+        var signature = Convert.ToBase64String(hmac.ComputeHash(Encoding.UTF8.GetBytes(Body)));
+
+        await using var scope = _provider!.CreateAsyncScope();
+        var dispatcher = scope.ServiceProvider.GetRequiredService<IInboxEventDispatcher>();
+
+        var result = await dispatcher.DispatchAsync(Body, signature, CancellationToken.None);
+
+        result.Outcome.Should().Be(InboxDispatchOutcome.BadEnvelope);
+        result.Detail.Should().NotBeNullOrEmpty();
+    }
+
+    [Fact]
+    public async Task Inbox_dispatcher_returns_BadEnvelope_when_envelope_fields_missing()
+    {
+        var (envelope, signature) = BuildSignedEnvelope(new
+        {
+            // EventId missing -> Guid.Empty after deserialization
+            EventType = ScheduleActivityCostLoadedV1.EventType,
+            OccurredAt = DateTime.UtcNow,
+            Payload = new { },
+        });
+
+        await using var scope = _provider!.CreateAsyncScope();
+        var dispatcher = scope.ServiceProvider.GetRequiredService<IInboxEventDispatcher>();
+
+        var result = await dispatcher.DispatchAsync(envelope, signature, CancellationToken.None);
+
+        result.Outcome.Should().Be(InboxDispatchOutcome.BadEnvelope);
+        result.Detail.Should().Contain("EventId");
+    }
+
+    [Fact]
+    public async Task Inbox_dispatcher_returns_UnknownEventType_for_unrecognised_event()
+    {
+        var (envelope, signature) = BuildSignedEnvelope(new
+        {
+            EventId = Guid.NewGuid(),
+            EventType = "Financials.Mystery_v1",
+            OccurredAt = DateTime.UtcNow,
+            Payload = new { foo = "bar" },
+        });
+
+        await using var scope = _provider!.CreateAsyncScope();
+        var dispatcher = scope.ServiceProvider.GetRequiredService<IInboxEventDispatcher>();
+
+        var result = await dispatcher.DispatchAsync(envelope, signature, CancellationToken.None);
+
+        result.Outcome.Should().Be(InboxDispatchOutcome.UnknownEventType);
+        result.Detail.Should().Contain("Financials.Mystery_v1");
+
+        var db = scope.ServiceProvider.GetRequiredService<FinancialsDbContext>();
+        (await db.InboxEvents.CountAsync()).Should().Be(0,
+            "an unknown event type must NOT be persisted to the inbox table");
+    }
+
     private async Task<(Guid financialsProjectId, Guid budgetId)> ConfirmAndCreateBudgetAsync()
     {
         var cimsProjectId = Guid.NewGuid();
