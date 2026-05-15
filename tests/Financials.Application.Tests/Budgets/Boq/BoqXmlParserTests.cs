@@ -277,6 +277,135 @@ public class BoqXmlParserTests
         result.Document.Lines[0].UnitRate.Should().Be(10.25m);
     }
 
+    // --- Strict decimal parsing (M-5) ---------------------------------------
+    //
+    // The contract: '.' is the only decimal separator; no thousands separator;
+    // no exponent; no parentheses; no whitespace inside the number. Leading
+    // and trailing XML formatting whitespace IS tolerated (Trim()ed).
+    //
+    // Why this matters: the previous parser used NumberStyles.Number with
+    // InvariantCulture, which silently treats ',' as a thousands separator.
+    // So "120,5" parsed as 1205 — a 1000x silent data corruption.
+
+    [Theory]
+    [InlineData("1,000", "Quantity")]
+    [InlineData("1,000.50", "Quantity")]   // dot decimal, comma thousands — REJECTED (no thousands allowed)
+    [InlineData("1.000,50", "Quantity")]   // continental — REJECTED
+    [InlineData("1 000", "Quantity")]      // space thousands — REJECTED
+    [InlineData("120,5", "Quantity")]      // continental decimal — REJECTED (would silently parse as 1205 under old rule)
+    [InlineData("1e3", "Quantity")]        // scientific — REJECTED
+    [InlineData("1E3", "Quantity")]        // scientific (caps) — REJECTED
+    [InlineData("(100)", "Quantity")]      // accountancy negative — REJECTED
+    [InlineData("12.34.56", "Quantity")]   // two decimal points — REJECTED
+    public void Parse_rejects_non_strict_decimal_in_quantity(string raw, string _)
+    {
+        var lineXml = $"""
+            <Line lineNumber="1">
+              <CimsCostCodeId>22222222-2222-2222-2222-222222222222</CimsCostCodeId>
+              <Description>x</Description>
+              <Quantity>{raw}</Quantity>
+              <UnitOfMeasure>nr</UnitOfMeasure>
+              <UnitRate>1</UnitRate>
+            </Line>
+            """;
+
+        var result = BoqXmlParser.Parse(ValidDocument(linesXml: lineXml));
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(e =>
+            e.Contains("Quantity", StringComparison.Ordinal)
+            && e.Contains("no thousands separator", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("1,000")]
+    [InlineData("1,000.50")]
+    [InlineData("1.000,50")]
+    [InlineData("1 000")]
+    [InlineData("120,5")]
+    [InlineData("1e3")]
+    public void Parse_rejects_non_strict_decimal_in_unit_rate(string raw)
+    {
+        var lineXml = $"""
+            <Line lineNumber="1">
+              <CimsCostCodeId>22222222-2222-2222-2222-222222222222</CimsCostCodeId>
+              <Description>x</Description>
+              <Quantity>1</Quantity>
+              <UnitOfMeasure>nr</UnitOfMeasure>
+              <UnitRate>{raw}</UnitRate>
+            </Line>
+            """;
+
+        var result = BoqXmlParser.Parse(ValidDocument(linesXml: lineXml));
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(e =>
+            e.Contains("UnitRate", StringComparison.Ordinal)
+            && e.Contains("no thousands separator", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("1000.50", "1000.50")]
+    [InlineData("0", "0")]
+    [InlineData("0.0001", "0.0001")]
+    [InlineData("999999999999.9999", "999999999999.9999")]   // within decimal(19,4) head room
+    [InlineData("1", "1")]
+    [InlineData("1.0", "1.0")]
+    [InlineData("-1.50", "-1.50")]   // negative sign tolerated; quantity-non-negative check is separate
+    public void Parse_accepts_valid_strict_decimal(string raw, string expectedRaw)
+    {
+        var expected = decimal.Parse(expectedRaw, CultureInfo.InvariantCulture);
+        var lineXml = $"""
+            <Line lineNumber="1">
+              <CimsCostCodeId>22222222-2222-2222-2222-222222222222</CimsCostCodeId>
+              <Description>x</Description>
+              <Quantity>{raw}</Quantity>
+              <UnitOfMeasure>nr</UnitOfMeasure>
+              <UnitRate>1</UnitRate>
+            </Line>
+            """;
+
+        var result = BoqXmlParser.Parse(ValidDocument(linesXml: lineXml));
+
+        if (expected < 0)
+        {
+            // The parser tolerates the leading minus at the strict-decimal level
+            // but rejects it at the per-field non-negative check. That is two
+            // distinct guards and both should remain in place.
+            result.IsValid.Should().BeFalse();
+            result.Errors.Should().Contain(e => e.Contains("non-negative", StringComparison.Ordinal));
+        }
+        else
+        {
+            result.IsValid.Should().BeTrue();
+            result.Document!.Lines[0].Quantity.Should().Be(expected);
+        }
+    }
+
+    [Fact]
+    public void Parse_tolerates_xml_formatting_whitespace_inside_quantity_element()
+    {
+        // XML can wrap element content in whitespace from indentation; the parser
+        // trims before strict parsing so this is still a valid 120.5, not rejected.
+        var lineXml = """
+            <Line lineNumber="1">
+              <CimsCostCodeId>22222222-2222-2222-2222-222222222222</CimsCostCodeId>
+              <Description>x</Description>
+              <Quantity>
+                120.5
+              </Quantity>
+              <UnitOfMeasure>nr</UnitOfMeasure>
+              <UnitRate> 10.25 </UnitRate>
+            </Line>
+            """;
+
+        var result = BoqXmlParser.Parse(ValidDocument(linesXml: lineXml));
+
+        result.IsValid.Should().BeTrue();
+        result.Document!.Lines[0].Quantity.Should().Be(120.5m);
+        result.Document.Lines[0].UnitRate.Should().Be(10.25m);
+    }
+
     [Fact]
     public void Parse_duplicate_line_numbers_are_reported()
     {

@@ -16,6 +16,26 @@ public static class BoqXmlParser
     private static readonly XNamespace Ns = Namespace;
     private static readonly IReadOnlyList<string> NoErrors = Array.Empty<string>();
 
+    // Strict decimal: optional leading sign, optional decimal point, NOTHING ELSE.
+    // Specifically: no thousands separator (NumberStyles.Number's default behavior
+    // would accept "1,000" as 1000 under invariant culture — silent data corruption);
+    // no whitespace inside the number; no exponent; no parentheses.
+    // We Trim() the input ourselves to absorb XML formatting whitespace.
+    private const NumberStyles StrictDecimalStyle =
+        NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint;
+
+    private static bool TryParseStrictDecimal(string? raw, out decimal value)
+    {
+        value = 0m;
+        if (raw is null)
+        {
+            return false;
+        }
+
+        var trimmed = raw.Trim();
+        return decimal.TryParse(trimmed, StrictDecimalStyle, CultureInfo.InvariantCulture, out value);
+    }
+
     public static BoqParseResult Parse(string xmlContent)
     {
         if (string.IsNullOrWhiteSpace(xmlContent))
@@ -109,10 +129,10 @@ public static class BoqXmlParser
                 continue;
             }
 
-            if (!decimal.TryParse(line.Element(Ns + "Quantity")?.Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var quantity)
+            if (!TryParseStrictDecimal(line.Element(Ns + "Quantity")?.Value, out var quantity)
                 || quantity < 0m)
             {
-                errors.Add($"{prefix}: Quantity must be a non-negative decimal.");
+                errors.Add($"{prefix}: Quantity must be a non-negative decimal using '.' as the decimal point and no thousands separator.");
                 continue;
             }
 
@@ -123,10 +143,10 @@ public static class BoqXmlParser
                 continue;
             }
 
-            if (!decimal.TryParse(line.Element(Ns + "UnitRate")?.Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var unitRate)
+            if (!TryParseStrictDecimal(line.Element(Ns + "UnitRate")?.Value, out var unitRate)
                 || unitRate < 0m)
             {
-                errors.Add($"{prefix}: UnitRate must be a non-negative decimal.");
+                errors.Add($"{prefix}: UnitRate must be a non-negative decimal using '.' as the decimal point and no thousands separator.");
                 continue;
             }
 
