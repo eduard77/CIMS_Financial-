@@ -2,7 +2,7 @@
 
 Commercial management for UK construction. One of four independent products that together form the Genera Systems platform.
 
-> **Status:** Sprint 6 complete — F0 (project setup), F1 (budget + BoQ import + Pattern B schedule-cost subscription), and F2 (commitments + insurances + reconciliation + over-commitment guard) all shipped against passing criteria. Sprint 7 (F3 — NEC4 / JCT change management) starts next.
+> **Status:** Sprint 6 closeout + autonomous hardening (M-1 through M-8 closed; outbox dispatcher pending CIMS spec). F0 + F1 + F2 shipped; Sprint 7 (F3 — NEC4 / JCT change management) starts next.
 > See [docs/sprint-plan.md](./docs/sprint-plan.md) for current sprint and roadmap and [CONTRIBUTING.md](./CONTRIBUTING.md) for how to contribute.
 
 ---

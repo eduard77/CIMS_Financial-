@@ -14,10 +14,15 @@ If you are starting on the repo for the first time, do the [README quick start](
 1. **Find the sprint.** [`docs/sprint-plan.md`](./docs/sprint-plan.md) names what is
    in-flight. We ship sprint by sprint — no F-module-jumping, no Big Bang
    generation. If your change spans sprints, raise it with the maintainer first.
-2. **Find the ADR.** Anything load-bearing has an Architecture Decision Record
-   under [`docs/decisions/`](./docs/decisions/). Re-read the relevant ADRs before
-   modifying the area they describe; they capture intent that the code alone
-   does not. New architectural choices need a new ADR (use
+2. **Find the ADR.** Anything load-bearing has an Architecture Decision Record.
+   Two folders coexist: the historical product ADRs are under
+   [`docs/decisions/`](./docs/decisions/) (0001 architecture baseline through
+   0009 F2 closeout); the hardening-pass ADRs are under
+   [`docs/adr/`](./docs/adr/) ([0001](./docs/adr/0001-failure-vs-exception.md)
+   on Result/FailureReason/DomainException, and
+   [0002](./docs/adr/0002-outbox-pattern.md) on the Pattern B outbox).
+   Re-read the relevant ADRs before modifying the area they describe.
+   New architectural choices need a new ADR (use
    [`0000-template.md`](./docs/decisions/0000-template.md)).
 3. **Find the layer.** Clean Architecture is enforced by reference:
    `Web → Application → Domain`, `Infrastructure → Application → Domain`. Domain
@@ -75,13 +80,31 @@ Pick one of the existing aggregates as a template before adding a new one.
 
 - One handler per command or query — no god handlers.
 - Handlers return `Result<T>` (success carries a value) or `Result` (no value).
-  We do **not** throw to communicate user-visible failure; we return
-  `Result.Failure("...")`. The exceptions are: framework errors and bugs
-  (we let those propagate), and HTTP/network failures from `CimsClient`,
-  which we translate to a `Result.Failure("CIMS is currently unavailable...")`.
+  We do **not** throw to communicate user-visible failure; we return a typed
+  `Result.Failure(FailureReason.X, "...")` (or one of the helpers:
+  `Result.NotFound(...)`, `Result.Conflict(...)`, `Result.PreconditionFailed(...)`,
+  `Result.Unauthorized(...)`, `Result.DependencyUnavailable(...)`).
+  Aggregates throw `DomainException(FailureReason, message)` for domain-rule
+  violations; handlers catch the single type and propagate
+  `ex.Reason` / `ex.Message`. **Never** catch
+  `ArgumentException`/`InvalidOperationException` to translate them by hand —
+  that's the pattern ADR-0001 rejects. See
+  [`docs/adr/0001-failure-vs-exception.md`](./docs/adr/0001-failure-vs-exception.md).
+- HTTP / network failures from `CimsClient` translate to
+  `Result.DependencyUnavailable("CIMS is currently unavailable...")`.
 - Validation lives in `IValidator<TCommand>` (FluentValidation), invoked by the
   MediatR `ValidationBehaviour` pipeline behaviour. Don't repeat validation
   inside the handler.
+- **Authorisation:** every mutation command type must carry
+  `[RequiresPermission(AuthorizationPolicies.X)]`. The MediatR
+  `AuthorizationBehaviour` enforces it before the handler runs. The
+  contract test
+  `tests/Financials.Application.Tests/Common/Authorization/RolePermissionsContractTests.cs`
+  will fail CI if a new `*Command` lacks the attribute, if the named
+  permission isn't a known `AuthorizationPolicies` constant, or if it isn't
+  granted to at least one role in `FinancialsRolePermissions.Map`. Adding a
+  new permission requires updating both the constant set and the role map —
+  no exceptions.
 - Every async method takes a `CancellationToken` and passes it through.
 - Money assertions in tests use `FluentAssertions.Should().Be(decimalValue)` —
   not `==` on doubles.
@@ -97,13 +120,36 @@ cross-product call site is one of:
   in `try { ... } catch (HttpRequestException) { return Result.Failure("CIMS is
   currently unavailable. ...") }`. The handler comment above the call must say
   `// Pattern A — ...`.
-- **Pattern B — Event publication/subscription.** Outgoing events go through
-  the outbox (when implemented — Sprint 7 onwards adds outbox publication for
-  F3). Incoming events arrive at `/api/events/incoming`, are HMAC-verified by
-  `InboxEventDispatcher`, persisted to `fin.InboxEvents` (unique on `EventId`
-  for idempotency), and published as MediatR notifications. Add a new event
-  type by extending `TryBuildNotification` in `InboxEventDispatcher` and
-  adding a contract record under `Financials.Contracts/Events/`.
+- **Pattern B — Event publication/subscription.** See
+  [`docs/adr/0002-outbox-pattern.md`](./docs/adr/0002-outbox-pattern.md).
+  - **Outgoing**: handlers call `IOutboxEventPublisher.Enqueue(...)` next
+    to the aggregate mutation; the row commits in the same EF transaction
+    as the aggregate change (atomicity). A `BackgroundService`
+    (`OutboxDispatcherService`) polls `fin.OutboxEvents`, claims rows
+    with `WITH (UPDLOCK, READPAST, ROWLOCK)` so concurrent instances see
+    disjoint rows, calls `IOutboxEventTransport`, and marks each row
+    Dispatched / Failed (after `MaxAttempts`). Until the CIMS-side
+    webhook target is specified, `NoOpOutboxEventTransport` is registered
+    and rows accumulate Pending — that is the documented temporary state.
+    Adding a new outgoing event type means adding a contract record under
+    `Financials.Contracts/Events/`, then calling `_outbox.Enqueue(EventId,
+    "MyEventType_v1", JsonSerializer.Serialize(payload), _clock.UtcNow)`
+    in the handler.
+  - **Incoming**: events arrive at `/api/events/incoming`, are HMAC-verified
+    by `InboxEventDispatcher`, persisted to `fin.InboxEvents` (unique on
+    `EventId` for idempotency), and published as MediatR notifications.
+    Add a new event type by extending `TryBuildNotification` in
+    `InboxEventDispatcher` and adding a contract record under
+    `Financials.Contracts/Events/`.
+  - **Idempotency:** both inbox and outbox enforce uniqueness on
+    `EventId` at the database level. Notification handlers MUST be safe
+    to invoke twice with the same event — the test pattern is in
+    `F1ImportSliceTests.Inbox_dispatcher_processes_a_signed_envelope_exactly_once`.
+  - **Poison-message handling:** notification handlers MUST catch
+    `DomainException` from aggregate methods, log at Warning, and
+    return — never propagate, because that would roll back the inbox
+    transaction and force infinite retries (see M-8 in the findings
+    queue; pattern in `ScheduleActivityCostLoadedHandler`).
 - **Pattern C — Document handoff.** Not yet implemented (F4+).
 
 A fourth pattern is not on offer. If your design wants one, that's an ADR
@@ -113,19 +159,30 @@ conversation, not a code change.
 
 ## Tests
 
-Three rings, three speeds. All three must be green to merge.
+Four rings, four speeds. All four must be green to merge.
 
 1. **Unit** — `Financials.Domain.Tests`, `Financials.Application.Tests`. No I/O.
-   `Trait("Category", "Unit")` or unmarked; runs in CI on every PR.
-2. **Infrastructure** — `Financials.Infrastructure.Tests`. Spins up real SQL
+   Trait absent or anything other than the special categories below; runs in
+   CI on every PR.
+2. **Architecture** — `Financials.Integration.Tests/Architecture/`. Pure
+   reflection over compiled assemblies; no I/O. Marked
+   `[Trait("Category", "Architecture")]`. Enforces:
+   - Layering rules (Domain depends on nothing; Application doesn't see
+     Infrastructure or Web; Contracts is leaf; Infrastructure doesn't see Web).
+   - Handler naming + feature-slice folder placement.
+   - Aggregate invariants (no public setters, no mutable collection
+     properties, EF parameterless constructor present).
+3. **Infrastructure** — `Financials.Infrastructure.Tests`. Spins up real SQL
    Server via Testcontainers (Docker required locally and in CI). Each test
    class owns its own `MsSqlContainer`. Mark with
    `[Trait("Category", "Infrastructure")]`. Slower (≈30s+ per class for the
-   container) but bounded.
-3. **Integration** — `Financials.Integration.Tests`. Drives the full MediatR
-   pipeline and infrastructure together. Some marked `[Trait("Category",
+   container) but bounded. Parallel execution is **disabled** in this project
+   via `xunit.runner.json` because parallel Testcontainers exhaust Docker
+   resources.
+4. **Integration** — slice tests in `Financials.Integration.Tests`. Drives the
+   full MediatR pipeline + Testcontainers. Some marked `[Trait("Category",
    "Integration")]` for the eventual CIMS-staging suite (run nightly /
-   pre-release, not on every PR).
+   pre-release, not on every PR). Parallel execution is **disabled** here too.
 
 Conventions:
 
@@ -143,11 +200,27 @@ Conventions:
 To run a focused subset locally:
 
 ```pwsh
-# Unit only
-dotnet test --filter "Category!=Integration&Category!=Infrastructure"
+# Unit only (fastest)
+dotnet test --filter "Category!=Integration&Category!=Infrastructure&Category!=Architecture"
+
+# Architecture only (fast — no I/O, just reflection)
+dotnet test --filter "Category=Architecture"
 
 # Infrastructure (needs Docker)
 dotnet test --filter "Category=Infrastructure"
+```
+
+**Mutation testing.** Stryker.NET is not retained as a dependency; install
+ad-hoc when you need it. The Session-3 baseline against `Financials.Domain`
+is 67.91% (see `docs/mutation-report-domain.md`). The top 5 surviving
+mutants are logged as `mut-1` through `mut-5` in
+`docs/code-review-findings.md`.
+
+```pwsh
+dotnet tool install -g dotnet-stryker
+cd tests/Financials.Domain.Tests
+dotnet stryker --project Financials.Domain --reporter "markdown"
+dotnet tool uninstall -g dotnet-stryker
 ```
 
 ---
