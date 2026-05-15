@@ -58,8 +58,17 @@ jobs:
           dotnet test Financials.sln
           --no-build
           --configuration Release
-          --filter "Category!=Integration&Category!=Infrastructure"
+          --filter "Category!=Integration&Category!=Infrastructure&Category!=Architecture"
           --logger "trx;LogFileName=unit-tests.trx"
+          --results-directory ${{ github.workspace }}/TestResults
+
+      - name: Test - architecture ring (layering + handler naming + aggregate invariants)
+        run: >
+          dotnet test Financials.sln
+          --no-build
+          --configuration Release
+          --filter "Category=Architecture"
+          --logger "trx;LogFileName=architecture-tests.trx"
           --results-directory ${{ github.workspace }}/TestResults
 
       - name: Test - infrastructure ring (Testcontainers / SQL Server)
