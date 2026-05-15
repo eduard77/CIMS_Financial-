@@ -27,6 +27,83 @@ _None._
 
 ## Major
 
+### M-7 — `BudgetRevision.AddLine` does not enforce that line currency matches the parent budget currency
+
+`Budget` carries a `Currency` (`string`, 3-letter). `BudgetRevision.AddLine`
+(`src/Financials.Domain/Budgets/BudgetRevision.cs:52-87`) takes a `Money
+unitRate` and constructs `BudgetLine.Create(...)`. **Neither `BudgetRevision`
+nor `BudgetLine` checks that `unitRate.Currency == Budget.Currency`.**
+
+Compare with `Commitment.AddLine` (`src/Financials.Domain/Commitments/Commitment.cs:104-108`),
+which explicitly enforces the rule:
+
+```csharp
+if (!string.Equals(unitRate.Currency, Currency, StringComparison.Ordinal))
+{
+    throw new InvalidOperationException(
+        $"Line currency {unitRate.Currency} does not match commitment currency {Currency}.");
+}
+```
+
+`Budget` has no equivalent guard. As a result:
+
+- A handler can call `AddLine(..., new Money(x, "EUR"))` against a GBP budget
+  with no error. The line persists with mixed currency.
+- `BudgetRevision.TotalAmount(currency)` then explodes (Money's
+  `RequireSameCurrency` throws) when totals are computed — but at *read* time,
+  not at write time.
+- `ImportBoqCommand` defends against this at the *handler* boundary
+  (`ImportBoqCommand.cs:67-72`) but only by checking the BoQ document's
+  declared currency against the budget's; it doesn't defend against
+  in-process callers (e.g., the `ScheduleActivityCostLoadedHandler`).
+
+**Severity:** major because it's a silent FX-mismatch hole on the system's
+core financial datum.
+
+**Fix:** add the same `unitRate.Currency == Currency` check to
+`BudgetRevision.AddLine` (pushing `Budget.Currency` down via parameter, or
+moving the check up to `Budget.AddLineToCurrentDraft(...)`).
+
+**Audit trail:** found in Phase 3 audit revision (2026-05-15 continuation).
+
+### M-8 — `ScheduleActivityCostLoadedHandler` is a poison-message hazard
+
+`src/Financials.Application/Budgets/Notifications/ScheduleActivityCostLoadedHandler.cs:75-86`
+calls `draft.AddLine(...)` with no try/catch. `AddLine` throws on:
+
+- Duplicate `lineNumber` (defended by `Max(LineNumber)+1` so unlikely here, but possible if
+  another writer raced in)
+- `BudgetLine.Create` validation failures (blank description, negative
+  quantity, etc. — bad payload from upstream)
+- Currency mismatch — after M-7 is fixed, this case will throw too
+
+When `AddLine` throws, the exception propagates through MediatR.Publish back
+to `InboxEventDispatcher.DispatchAsync`. The dispatcher's
+`BeginTransactionAsync()` block never commits — **the inbox row is rolled
+back**. So:
+
+1. The webhook handler in `Program.cs` returns 500 to CIMS.
+2. CIMS retries (per Pattern B semantics).
+3. The duplicate check (`AnyAsync(e => e.EventId == ...)`) returns false
+   because the previous attempt rolled back.
+4. The same failure repeats on every retry **forever**.
+
+For event types whose handler is *correct*, this is fine — but a single
+malformed event blocks itself permanently and can starve the dispatcher
+queue if events arrive in order.
+
+**Severity:** major. This is exactly the kind of bug the inbox/outbox
+pattern was designed to *prevent*, and it's masked by current tests because
+all integration test payloads are valid.
+
+**Fix:** in the notification handler, catch domain `InvalidOperationException`
+/ `ArgumentException`, log at Warning, and **return without throwing**.
+The inbox row persists; the event is deduped on retry. (This intersects
+with M-4: after M-4 lands, this becomes a `Result<>` from the aggregate
+rather than a catch.)
+
+**Audit trail:** found in Phase 3 audit revision (2026-05-15 continuation).
+
 ### M-1 — Pattern B has only an **Inbox**; the **Outbox** is not yet implemented
 
 `CLAUDE.md` §6 Pattern B is explicit: *outgoing events* must be persisted to
@@ -165,6 +242,36 @@ input had more precision than `decimal(19,4)`), or fail-fast.
 ---
 
 ## Minor
+
+### m-9 — `GetCommitmentReconciliationQuery` hardcodes `"GBP"` when no budget exists
+
+`src/Financials.Application/Commitments/GetCommitmentReconciliationQuery.cs:52-54`
+returns `new CommitmentReconciliationDto(..., "GBP", 0m, 0m, 0m, [])` when
+the project has no budget yet. If the project's intended currency is not
+GBP, the empty reconciliation lies about it. Either:
+
+- Read the currency from `FinancialsProject`'s commercial configuration
+  (where it should logically live but currently does not), or
+- Return `null` / fail-soft and let the UI display "No budget" without a
+  currency claim.
+
+**Audit trail:** found in Phase 3 audit revision (2026-05-15 continuation).
+
+### m-10 — `GetCommitmentReconciliationQuery` sums commitment line amounts without per-currency checks
+
+`GetCommitmentReconciliationQuery.cs:66-70` sums `l.Value.Amount` (a `decimal`)
+across all active commitments without checking that every commitment's
+currency matches the budget's. If a project ever raises mixed-currency
+commitments (e.g., a GBP budget but a EUR commitment to an EU supplier),
+`committedTotal` becomes meaningless. The per-row reconciliation is also
+broken — each `ReconciliationRow.Committed` is a raw sum across currencies.
+
+Today the system has no cross-currency awareness, so the in-practice impact
+is zero. But this is the kind of latent bug that bites at multi-currency
+go-live. Either add a currency check (fail-fast if mixed), or strip
+multi-currency aspirations from the schema entirely.
+
+**Audit trail:** found in Phase 3 audit revision (2026-05-15 continuation).
 
 ### m-1 — `FinancialsDbContext` is not `sealed`
 

@@ -248,3 +248,106 @@ After review, the human will want to decide on:
   exception messages becomes essential.
 - **M-3 `FinancialsRolePermissions`.** Test against CIMS, or delete and
   rely on the JWT contract?
+
+---
+
+## Phase 3 audit revision — 2026-05-15 continuation
+
+The original Phase 3 sweep was grep-based ("`async void`", "`.Result`",
+"`DateTime.Now`", `catch {}`). The continuation prompt called it out as
+suspicious, and rightly so — those greps catch *some* smells but miss
+correctness gaps that only an end-to-end read reveals. This revision
+re-audits 10 files end-to-end. Files audited (named upfront, not picked
+post-hoc):
+
+**Handlers (5):**
+
+1. `src/Financials.Application/Projects/ConfirmCimsProjectCommand.cs` —
+   clean: typed `Result`, CT propagated, `IClock`, Pattern A catch is
+   tight (`HttpRequestException` only).
+2. `src/Financials.Application/Commitments/RaiseCommitmentCommand.cs` —
+   clean. No `ICurrentUserService` needed at creation time (audit
+   interceptor handles who/when).
+3. `src/Financials.Application/Budgets/OpenBudgetRevisionCommand.cs` —
+   uses the M-4 catch-and-translate pattern (`catch (InvalidOperationException
+   ex) { return Result.Failure(ex.Message); }`). Already documented under M-4.
+4. `src/Financials.Application/Commitments/GetCommitmentReconciliationQuery.cs` —
+   **two new findings**: hardcoded `"GBP"` when budget is null (m-9), and
+   cross-currency summation hazard (m-10).
+5. `src/Financials.Application/Budgets/Notifications/ScheduleActivityCostLoadedHandler.cs`
+   — **new major finding**: poison-message hazard, exceptions in
+   `draft.AddLine` propagate up through `MediatR.Publish` to the inbox
+   dispatcher's transaction and force infinite retries on bad payloads (M-8).
+
+**Repositories (3):**
+
+6. `src/Financials.Infrastructure/Projects/FinancialsProjectRepository.cs`
+   — clean. `FindByCimsProjectIdAsync` returns tracked entity (intentional
+   for the write path); `ListAllAsync` uses `AsNoTracking()`. No N+1.
+7. `src/Financials.Infrastructure/Projects/ProjectCommercialConfigurationRepository.cs`
+   — clean, tracked read for the write path same as above.
+8. `src/Financials.Infrastructure/Commitments/CommitmentInsuranceRepository.cs`
+   — clean. `ListActiveByFinancialsProjectIdAsync` does a single LINQ join
+   against EF (no N+1, executed server-side).
+
+**Aggregates (2):**
+
+9. `src/Financials.Domain/Projects/FinancialsProject.cs` — clean.
+   Private setters, static `Confirm(...)` factory, `DateTime.SpecifyKind`
+   UTC normalisation, `IAuditable`.
+10. `src/Financials.Domain/Projects/ProjectCommercialConfiguration.cs` —
+    clean. One small quirk: `UpdateConfiguration` treats null
+    `overCommitmentGuard` as "don't update" rather than a value. That's a
+    "patch interface" smell but not a bug; left as a not-worth-fixing nit.
+
+**Cross-aggregate audit (incidental but load-bearing):**
+
+11. `src/Financials.Domain/Budgets/BudgetRevision.cs` and `BudgetLine.cs`
+    — **new major finding M-7**: line currency is not enforced to match
+    parent budget currency, although `Commitment.AddLine` (the sister
+    aggregate) enforces exactly this. Silent FX-mismatch hole.
+
+### Why the grep sweep missed these
+
+| Finding | Why grep missed it |
+|---|---|
+| M-7 (BudgetLine currency unchecked) | Not visible from any pattern; it's a *missing* check, not a present anti-pattern. Only visible by reading the aggregate and comparing it to a sibling aggregate. |
+| M-8 (poison-message handler) | The handler has no `try`/`catch` at all (the previous sweep was looking for *bad* catches, not *missing* catches). Looks clean to grep; requires understanding the surrounding `InboxEventDispatcher` transaction shape. |
+| m-9 (hardcoded "GBP") | A literal string; grep for `"GBP"` would find 30+ legitimate uses. Only visible reading the early-return path. |
+| m-10 (cross-currency sum) | `.Sum(l => l.Value.Amount)` looks like every other reasonable sum; the hazard is that it ignores currency, which only becomes visible reading what `Value` is and what the parent currencies are. |
+
+### Conclusion
+
+The original sweep ("0 hits across the board") was too kind to itself. The
+**absence of present anti-patterns** is not the same as the **presence of
+correctness**. Adding two majors (M-7, M-8) and two minors (m-9, m-10)
+makes the queue:
+
+- 0 critical
+- **8 major** (was 6: +M-7, +M-8)
+- **10 minor** (was 8: +m-9, +m-10)
+- 7 nits
+
+These findings are now in `docs/code-review-findings.md` with file:line
+references. The continuation work order in the prompt is:
+
+1. M-5 (BoQ parser) first.
+2. M-4 (Result<FailureReason> migration).
+3. M-1 (outbox).
+4. M-2 + M-3 (authorization).
+5. Remaining minors and nits.
+
+**M-7 and M-8 are new and should land *before* M-4** — they're tiny fixes
+(one currency check, one try/catch) and they make the M-4 migration safer
+(M-4 will rewrite handlers including ScheduleActivityCostLoadedHandler; M-8
+is the kind of bug that's harder to spot in a refactor than to spot now).
+
+Adjusted work order:
+
+1. **M-5** (BoQ comma-thousands bug)
+2. **M-7** (BudgetLine currency enforcement)
+3. **M-8** (poison-message handler)
+4. **M-4** (Result + FailureReason migration)
+5. **M-1** (outbox)
+6. **M-2 + M-3** (authorization)
+7. minors and nits
