@@ -6,10 +6,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Financials.Infrastructure.Projects;
 
-[SuppressMessage(
-    "Performance",
-    "CA1812:Avoid uninstantiated internal classes",
-    Justification = "Resolved by the DI container.")]
 internal sealed class ProjectCommercialConfigurationRepository : IProjectCommercialConfigurationRepository
 {
     private readonly FinancialsDbContext _db;

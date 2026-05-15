@@ -5,10 +5,6 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace Financials.Infrastructure.HealthChecks;
 
-[SuppressMessage(
-    "Performance",
-    "CA1812:Avoid uninstantiated internal classes",
-    Justification = "Instantiated by the DI container via AddHealthChecks().AddCheck<T>().")]
 internal sealed class FinancialsDbHealthCheck : IHealthCheck
 {
     private readonly FinancialsDbContext _context;

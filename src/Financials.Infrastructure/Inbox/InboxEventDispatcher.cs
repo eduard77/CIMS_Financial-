@@ -19,10 +19,6 @@ namespace Financials.Infrastructure.Inbox;
 /// single EF transaction so failure rolls everything back and the
 /// publisher retries.
 /// </summary>
-[SuppressMessage(
-    "Performance",
-    "CA1812:Avoid uninstantiated internal classes",
-    Justification = "Resolved by the DI container.")]
 internal sealed partial class InboxEventDispatcher : IInboxEventDispatcher
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);

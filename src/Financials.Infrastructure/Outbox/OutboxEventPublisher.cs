@@ -10,10 +10,6 @@ namespace Financials.Infrastructure.Outbox;
 /// back in lockstep with the aggregate mutation that produced it. The row is
 /// not visible to anyone until the caller's <c>SaveChangesAsync</c>.
 /// </summary>
-[SuppressMessage(
-    "Performance",
-    "CA1812:Avoid uninstantiated internal classes",
-    Justification = "Resolved via DI as IOutboxEventPublisher.")]
 internal sealed class OutboxEventPublisher : IOutboxEventPublisher
 {
     private readonly FinancialsDbContext _db;

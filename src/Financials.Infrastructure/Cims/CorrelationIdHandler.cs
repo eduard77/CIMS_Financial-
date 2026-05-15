@@ -10,10 +10,6 @@ namespace Financials.Infrastructure.Cims;
 /// when an HTTP context exists; otherwise falls back to the current
 /// <see cref="Activity"/> id, then to a fresh GUID (ADR-0002 §Decision).
 /// </summary>
-[SuppressMessage(
-    "Performance",
-    "CA1812:Avoid uninstantiated internal classes",
-    Justification = "Resolved via AddHttpMessageHandler on the typed CimsClient registration.")]
 internal sealed class CorrelationIdHandler : DelegatingHandler
 {
     private const string CorrelationHeader = "X-Correlation-Id";

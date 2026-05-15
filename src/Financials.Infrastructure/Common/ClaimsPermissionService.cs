@@ -11,10 +11,6 @@ namespace Financials.Infrastructure.Common;
 /// <see cref="System.Security.Claims.ClaimsPrincipal.HasClaim(string, string)"/>
 /// call answers membership.
 /// </summary>
-[SuppressMessage(
-    "Performance",
-    "CA1812:Avoid uninstantiated internal classes",
-    Justification = "Resolved via DI when Web overrides the default IPermissionService.")]
 internal sealed class ClaimsPermissionService : IPermissionService
 {
     private const string PermissionsClaim = "permissions";

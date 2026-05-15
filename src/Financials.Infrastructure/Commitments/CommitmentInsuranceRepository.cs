@@ -6,8 +6,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Financials.Infrastructure.Commitments;
 
-[SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes",
-    Justification = "Resolved by the DI container.")]
 internal sealed class CommitmentInsuranceRepository : ICommitmentInsuranceRepository
 {
     private readonly FinancialsDbContext _db;

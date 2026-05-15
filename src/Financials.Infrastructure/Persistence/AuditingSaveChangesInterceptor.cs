@@ -14,10 +14,6 @@ namespace Financials.Infrastructure.Persistence;
 /// that touches an <see cref="IAuditable"/> is a fault, not a default-to-system
 /// fallback (CLAUDE.md §2 #8).
 /// </summary>
-[SuppressMessage(
-    "Performance",
-    "CA1812:Avoid uninstantiated internal classes",
-    Justification = "Resolved by the DI container and attached via AddDbContext options.")]
 internal sealed class AuditingSaveChangesInterceptor : SaveChangesInterceptor
 {
     private readonly IClock _clock;

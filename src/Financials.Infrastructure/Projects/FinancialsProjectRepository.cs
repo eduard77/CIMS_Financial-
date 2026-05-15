@@ -6,10 +6,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Financials.Infrastructure.Projects;
 
-[SuppressMessage(
-    "Performance",
-    "CA1812:Avoid uninstantiated internal classes",
-    Justification = "Resolved by the DI container via AddScoped<IFinancialsProjectRepository, FinancialsProjectRepository>().")]
 internal sealed class FinancialsProjectRepository : IFinancialsProjectRepository
 {
     private readonly FinancialsDbContext _db;

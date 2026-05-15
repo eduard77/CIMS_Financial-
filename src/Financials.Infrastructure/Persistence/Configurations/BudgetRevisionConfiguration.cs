@@ -6,10 +6,6 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Financials.Infrastructure.Persistence.Configurations;
 
-[SuppressMessage(
-    "Performance",
-    "CA1812:Avoid uninstantiated internal classes",
-    Justification = "Instantiated reflectively by EF Core via ApplyConfigurationsFromAssembly.")]
 internal sealed class BudgetRevisionConfiguration : IEntityTypeConfiguration<BudgetRevision>
 {
     public void Configure(EntityTypeBuilder<BudgetRevision> builder)

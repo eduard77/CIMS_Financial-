@@ -16,10 +16,6 @@ namespace Financials.Infrastructure.Cims;
 /// <see cref="HttpClient"/> registration; this class focuses on request shape,
 /// response deserialization, and 60-second read-through caching.
 /// </summary>
-[SuppressMessage(
-    "Performance",
-    "CA1812:Avoid uninstantiated internal classes",
-    Justification = "Resolved via AddHttpClient<ICimsClient, CimsClient>().")]
 internal sealed partial class CimsClient : ICimsClient
 {
     private const string ListProjectsPath = "api/projects";

@@ -10,10 +10,6 @@ namespace Financials.Infrastructure.Common;
 /// <c>email</c>, <c>name</c> — so JwtBearer must run with
 /// <c>MapInboundClaims = false</c>.
 /// </summary>
-[SuppressMessage(
-    "Performance",
-    "CA1812:Avoid uninstantiated internal classes",
-    Justification = "Resolved via DI when Web overrides the AnonymousCurrentUserService default.")]
 internal sealed class HttpContextCurrentUserService : ICurrentUserService
 {
     private const string SubjectClaim = "sub";
