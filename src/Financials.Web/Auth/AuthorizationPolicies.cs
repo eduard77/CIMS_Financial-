@@ -1,34 +1,23 @@
+// AuthorizationPolicies moved to Financials.Application.Common.Authorization
+// so that application-layer commands can reference the constants via
+// [RequiresPermission(...)] (M-2). Web references the same constants via
+// `using Financials.Application.Common.Authorization;` — no string duplication.
+//
+// This stub file is retained briefly to make the move discoverable from the
+// old path; remove on next sprint.
 namespace Financials.Web.Auth;
 
-/// <summary>
-/// Named authorization policies. Permission strings are values in the JWT
-/// <c>permissions</c> claim issued by CIMS (ADR-0003). Server-side
-/// <c>[Authorize(Policy = ...)]</c> is the authoritative gate; UI uses
-/// <c>IPermissionService.Has(...)</c> for ergonomics only (CLAUDE.md §10).
-/// </summary>
-public static class AuthorizationPolicies
+internal static class AuthorizationPolicies
 {
-    public const string ProjectsConfirm = "financials.projects.confirm";
-    public const string ProjectsRead = "financials.projects.read";
-
-    /// <summary>F0 item 4 — read commercial setup.</summary>
-    public const string SetupRead = "financials.setup.read";
-
-    /// <summary>F0 item 4 — write commercial setup (contract template, retention, payment terms).</summary>
-    public const string SetupConfigure = "financials.setup.configure";
-
-    /// <summary>F1 — read budgets and revisions.</summary>
-    public const string BudgetRead = "financials.budget.read";
-
-    /// <summary>F1 — open revisions and add lines.</summary>
-    public const string BudgetWrite = "financials.budget.write";
-
-    /// <summary>F1 — approve a draft revision (separate gate from write per CLAUDE.md §5 role list).</summary>
-    public const string BudgetApprove = "financials.budget.approve";
-
-    /// <summary>F2 — read commitments + lines.</summary>
-    public const string CommitmentsRead = "financials.commitments.read";
-
-    /// <summary>F2 — raise / add lines to / activate / close commitments.</summary>
-    public const string CommitmentsWrite = "financials.commitments.write";
+    // Re-exports for any straggling internal references inside Financials.Web.
+    // New code should use Financials.Application.Common.Authorization.AuthorizationPolicies directly.
+    public const string ProjectsConfirm = Financials.Application.Common.Authorization.AuthorizationPolicies.ProjectsConfirm;
+    public const string ProjectsRead = Financials.Application.Common.Authorization.AuthorizationPolicies.ProjectsRead;
+    public const string SetupRead = Financials.Application.Common.Authorization.AuthorizationPolicies.SetupRead;
+    public const string SetupConfigure = Financials.Application.Common.Authorization.AuthorizationPolicies.SetupConfigure;
+    public const string BudgetRead = Financials.Application.Common.Authorization.AuthorizationPolicies.BudgetRead;
+    public const string BudgetWrite = Financials.Application.Common.Authorization.AuthorizationPolicies.BudgetWrite;
+    public const string BudgetApprove = Financials.Application.Common.Authorization.AuthorizationPolicies.BudgetApprove;
+    public const string CommitmentsRead = Financials.Application.Common.Authorization.AuthorizationPolicies.CommitmentsRead;
+    public const string CommitmentsWrite = Financials.Application.Common.Authorization.AuthorizationPolicies.CommitmentsWrite;
 }

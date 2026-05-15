@@ -1,4 +1,5 @@
 using Financials.Application.Common;
+using Financials.Application.Common.Authorization;
 using Financials.Application.Persistence;
 using Financials.Domain.Budgets;
 using Financials.Domain.Common;
@@ -7,6 +8,7 @@ using MediatR;
 
 namespace Financials.Application.Budgets;
 
+[RequiresPermission(AuthorizationPolicies.BudgetWrite)]
 public sealed record CreateBudgetCommand(
     Guid FinancialsProjectId,
     string Currency = Money.DefaultCurrency) : IRequest<Result<Guid>>;

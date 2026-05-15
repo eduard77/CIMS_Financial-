@@ -4,6 +4,7 @@ using Financials.Application.Common;
 using Financials.Application.Projects;
 using Financials.Infrastructure;
 using Financials.Infrastructure.Persistence;
+using Financials.Integration.Tests.Common;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -63,6 +64,7 @@ public sealed class ProjectSetupSliceTests : IAsyncLifetime
         // userId so the audit interceptor accepts the SaveChanges.
         services.Replace(ServiceDescriptor.Singleton(_cims));
         services.Replace(ServiceDescriptor.Scoped(_ => currentUser));
+        services.Replace(ServiceDescriptor.Scoped<IPermissionService, GrantAllPermissionService>());
 
         _provider = services.BuildServiceProvider();
 

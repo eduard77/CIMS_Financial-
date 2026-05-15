@@ -1,5 +1,6 @@
 using Financials.Application.Budgets.Boq;
 using Financials.Application.Common;
+using Financials.Application.Common.Authorization;
 using Financials.Application.Persistence;
 using Financials.Domain.Common;
 using FluentValidation;
@@ -14,6 +15,7 @@ namespace Financials.Application.Budgets;
 /// the project's budget. Auto-opens a draft revision using the document's
 /// RevisionReason if no draft is currently open.
 /// </summary>
+[RequiresPermission(AuthorizationPolicies.BudgetWrite)]
 public sealed record ImportBoqCommand(string XmlContent) : IRequest<Result<ImportBoqResult>>;
 
 public sealed record ImportBoqResult(

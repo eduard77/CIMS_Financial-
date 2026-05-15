@@ -1,5 +1,6 @@
 using Financials.Application.Cims;
 using Financials.Application.Common;
+using Financials.Application.Common.Authorization;
 using Financials.Application.Persistence;
 using Financials.Domain.Commitments;
 using Financials.Domain.Common;
@@ -8,6 +9,7 @@ using MediatR;
 
 namespace Financials.Application.Commitments;
 
+[RequiresPermission(AuthorizationPolicies.CommitmentsWrite)]
 public sealed record RaiseCommitmentCommand(
     Guid FinancialsProjectId,
     CommitmentType Type,

@@ -1,4 +1,5 @@
 using Financials.Application.Common;
+using Financials.Application.Common.Authorization;
 using Financials.Application.Persistence;
 using Financials.Domain.Commitments;
 using Financials.Domain.Common;
@@ -7,6 +8,7 @@ using MediatR;
 
 namespace Financials.Application.Commitments;
 
+[RequiresPermission(AuthorizationPolicies.CommitmentsWrite)]
 public sealed record RegisterCommitmentInsuranceCommand(
     Guid CommitmentId,
     InsuranceCategory Category,

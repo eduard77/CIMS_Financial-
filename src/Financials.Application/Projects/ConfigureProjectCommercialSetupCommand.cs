@@ -1,5 +1,6 @@
 using Financials.Application.Cims;
 using Financials.Application.Common;
+using Financials.Application.Common.Authorization;
 using Financials.Application.Persistence;
 using Financials.Domain.Common;
 using Financials.Domain.Projects;
@@ -13,6 +14,7 @@ namespace Financials.Application.Projects;
 /// per ADR-0005. F0 item 3 (contract template selection); also persists
 /// retention scheme + payment terms.
 /// </summary>
+[RequiresPermission(AuthorizationPolicies.SetupConfigure)]
 public sealed record ConfigureProjectCommercialSetupCommand(
     Guid FinancialsProjectId,
     Guid ContractTemplateId,

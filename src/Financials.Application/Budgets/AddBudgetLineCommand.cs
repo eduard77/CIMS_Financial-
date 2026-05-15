@@ -1,4 +1,5 @@
 using Financials.Application.Common;
+using Financials.Application.Common.Authorization;
 using Financials.Application.Persistence;
 using Financials.Domain.Common;
 using FluentValidation;
@@ -6,6 +7,7 @@ using MediatR;
 
 namespace Financials.Application.Budgets;
 
+[RequiresPermission(AuthorizationPolicies.BudgetWrite)]
 public sealed record AddBudgetLineCommand(
     Guid BudgetId,
     Guid BudgetRevisionId,

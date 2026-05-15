@@ -6,6 +6,7 @@ using Financials.Application.Projects;
 using Financials.Domain.Budgets;
 using Financials.Infrastructure;
 using Financials.Infrastructure.Persistence;
+using Financials.Integration.Tests.Common;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -55,6 +56,7 @@ public sealed class BudgetSliceTests : IAsyncLifetime
         services.AddInfrastructure(_container.GetConnectionString(), configuration);
         services.Replace(ServiceDescriptor.Singleton(_cims));
         services.Replace(ServiceDescriptor.Scoped(_ => currentUser));
+        services.Replace(ServiceDescriptor.Scoped<IPermissionService, GrantAllPermissionService>());
 
         _provider = services.BuildServiceProvider();
 

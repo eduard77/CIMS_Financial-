@@ -1,5 +1,6 @@
 using Financials.Application.Budgets;
 using Financials.Application.Common;
+using Financials.Application.Common.Authorization;
 using Financials.Application.Persistence;
 using Financials.Application.Projects;
 using Financials.Domain.Budgets;
@@ -11,6 +12,7 @@ using MediatR;
 
 namespace Financials.Application.Commitments;
 
+[RequiresPermission(AuthorizationPolicies.CommitmentsWrite)]
 public sealed record ActivateCommitmentCommand(Guid CommitmentId) : IRequest<Result<ActivateCommitmentResult>>;
 
 public sealed record ActivateCommitmentResult(

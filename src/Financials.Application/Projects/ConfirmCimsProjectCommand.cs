@@ -1,5 +1,6 @@
 using Financials.Application.Cims;
 using Financials.Application.Common;
+using Financials.Application.Common.Authorization;
 using Financials.Application.Persistence;
 using Financials.Domain.Projects;
 using FluentValidation;
@@ -12,6 +13,7 @@ namespace Financials.Application.Projects;
 /// (CLAUDE.md §5). The CIMS project remains the source of truth; Financials
 /// only records that the project is in scope locally and who brought it in.
 /// </summary>
+[RequiresPermission(AuthorizationPolicies.ProjectsConfirm)]
 public sealed record ConfirmCimsProjectCommand(Guid CimsProjectId) : IRequest<Result<Guid>>;
 
 public sealed class ConfirmCimsProjectValidator : AbstractValidator<ConfirmCimsProjectCommand>
