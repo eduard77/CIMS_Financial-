@@ -1,0 +1,6 @@
+{
+  "$schema": "https://xunit.net/schema/v3/xunit.runner.schema.json",
+  "_comment": "Same reasoning as the Infrastructure project — Testcontainers + xUnit parallel execution can exhaust Docker resources.",
+  "parallelizeAssembly": false,
+  "parallelizeTestCollections": false
+}

@@ -1,0 +1,6 @@
+{
+  "$schema": "https://xunit.net/schema/v3/xunit.runner.schema.json",
+  "_comment": "Disable parallelism — every test class with IAsyncLifetime spins up its own SQL Server container via Testcontainers. Running these in parallel exhausts Docker's network / memory and returns InternalServerError. Sequential execution is slower but reliable on a single CI worker.",
+  "parallelizeAssembly": false,
+  "parallelizeTestCollections": false
+}

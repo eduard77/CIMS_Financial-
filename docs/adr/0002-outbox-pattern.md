@@ -1,8 +1,72 @@
 # ADR-0002 — Pattern B Outbox
 
-**Status:** Accepted (write-side); Dispatcher deferred to follow-on (2026-05-15)
-**Context:** Sprint-6-closeout codebase, continuation hardening session.
+**Status:** Accepted (write-side); Accepted (dispatcher machinery);
+the concrete CIMS-facing `IOutboxEventTransport` implementation is pending the CIMS-side spec.
+**Context:** Sprint-6-closeout codebase, continuation hardening sessions 2 + 3.
 **Related findings:** M-1 in `docs/code-review-findings.md`.
+
+## Update 2026-05-15 (Session 3)
+
+The transport-independent half of the dispatcher is now built. What ships:
+
+- `IOutboxEventTransport` (`Financials.Application.Outbox`) — single
+  `SendAsync(envelope, ct)` method returning `OutboxTransportResult`
+  (Success | TransientFailure | PermanentFailure). This is the seam the
+  CIMS implementation will eventually fill.
+- `OutboxDispatcherService` (`Financials.Infrastructure.Outbox`) —
+  `BackgroundService` that polls every `OutboxDispatcherOptions.PollInterval`
+  (default 5 s), claims up to `BatchSize` (default 50) rows with
+  `WITH (UPDLOCK, READPAST, ROWLOCK)`, calls `IOutboxEventTransport`,
+  and marks each row Dispatched / Failed. `MaxAttempts` (default 5)
+  caps the retry budget per row before flipping the row to terminal
+  Failed. Public `RunOnceAsync` lets tests drive one poll cycle
+  synchronously.
+- `NoOpOutboxEventTransport` — default-registered transport that returns
+  `TransientFailure` for every event and logs a single Warning at startup
+  so the operator knows the dispatcher is staged-but-not-publishing.
+- `FakeOutboxEventTransport` (test code) — assertable transport for the
+  infrastructure-ring tests.
+
+Test coverage (`OutboxDispatcherServiceTests`):
+
+1. Empty-pending → returns 0, transport not called.
+2. Always-succeeds → every row Dispatched, attempt count = 1.
+3. Retry-then-success → fails first 2 attempts, succeeds on 3rd; row
+   Dispatched with attempt count = 3 and `FailureReason` cleared.
+4. Max-retry → always-fails transport; row flipped to Failed after
+   `MaxAttempts` cycles.
+5. Failed rows stay Failed → the dispatcher doesn't re-attempt them on
+   subsequent cycles. Proves Failed rows don't block other events.
+6. Permanent-failure result → row marked Failed without retry.
+7. Concurrent dispatcher instances → 30 seeded rows, two dispatcher
+   instances running `RunOnceAsync` in parallel. Their claimed event-id
+   sets must be disjoint AND their union must cover all 30. This is the
+   row-locking proof.
+8. Poison message → transport throws; that row is marked Failed, the
+   sibling healthy row in the same batch dispatches normally, the
+   dispatcher does not crash.
+
+Pending (single sentence, to satisfy the prompt's "exactly one sentence"
+constraint):
+
+> The concrete `IOutboxEventTransport` implementation that POSTs the
+> outbox envelope to CIMS (auth, URL, HMAC signature shape) is pending
+> the CIMS-side webhook spec; until then `NoOpOutboxEventTransport` is
+> registered and rows accumulate Pending.
+
+A small operational note: with the NoOp transport in place, every
+outbox row will eventually transition `Pending → Pending (attempt 1) →
+... → Failed` after `MaxAttempts` polls. That is *fine* for a
+Sprint-7-without-CIMS state (no rows are written yet) but **must be
+reviewed** before F3 starts publishing events. The reasonable mitigation
+is to bump `MaxAttempts` very high in the no-CIMS configuration, OR to
+register a transport that returns Success-without-publishing while the
+CIMS endpoint is being built. Either is a config-only change.
+
+---
+
+## Original session-2 ADR text follows
+
 
 ## Problem
 

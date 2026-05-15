@@ -64,11 +64,29 @@ public static class InfrastructureServiceCollectionExtensions
             .ValidateOnStart();
         services.AddScoped<IInboxEventDispatcher, InboxEventDispatcher>();
 
-        // Pattern B write-side outbox (ADR-0002). The dispatcher hosted service
-        // is deferred until the CIMS-side webhook target is specified; today
-        // the publisher only stages rows in the same EF transaction as the
-        // aggregate mutation.
+        // Pattern B outbox (ADR-0002).
+        //
+        // Write-side: the publisher stages rows on the shared DbContext so
+        //   they commit in the same transaction as the aggregate mutation.
+        // Read-side: OutboxDispatcherService is a BackgroundService that
+        //   claims pending rows via row-level locks (READPAST so concurrent
+        //   instances don't deadlock), calls IOutboxEventTransport, and
+        //   marks Dispatched / Failed.
+        //
+        // IOutboxEventTransport is the seam where the CIMS transport
+        // plugs in. Until the CIMS spec lands, NoOpOutboxEventTransport is
+        // the default — it returns TransientFailure for every event so the
+        // rows stay Pending (CLAUDE.md §6: "CIMS being down delays delivery;
+        // it never loses data"). The NoOp transport also doubles as a
+        // hosted service that logs a single Warning at startup so the
+        // operator knows the dispatcher is not actually publishing.
         services.AddScoped<IOutboxEventPublisher, OutboxEventPublisher>();
+        services.AddOptions<OutboxDispatcherOptions>()
+            .Bind(configuration.GetSection(OutboxDispatcherOptions.SectionName));
+        services.AddSingleton<NoOpOutboxEventTransport>();
+        services.AddSingleton<IOutboxEventTransport>(sp => sp.GetRequiredService<NoOpOutboxEventTransport>());
+        services.AddHostedService(sp => sp.GetRequiredService<NoOpOutboxEventTransport>());
+        services.AddHostedService<OutboxDispatcherService>();
 
         services.AddHealthChecks()
             .AddCheck<FinancialsDbHealthCheck>("financials-db")
