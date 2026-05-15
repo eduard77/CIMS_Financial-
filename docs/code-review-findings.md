@@ -10,6 +10,44 @@ sprint / correctness gap / coverage gap on a critical path), `minor` (this
 sprint or next), `nit` (cosmetic, optional). Nothing has been fixed — this is
 a triage queue.
 
+---
+
+## Mutation-testing findings (Session 3)
+
+These came from a Stryker.NET 4.14.1 run against `Financials.Domain` only —
+67.91% mutation score on 281 active mutants. Full report:
+`docs/mutation-report-domain.md`. Per the resume prompt these are logged but
+NOT auto-fixed; mutation results often need a human triage call on whether
+the surviving mutant points at a missing test or at correctly-undefined
+behaviour.
+
+- **mut-1 — Currency length check in `Budget.Create` / `Commitment.Create`
+  / `Money` is not tested at the off-by-one boundary.** `||` mutates to
+  `&&` and a 4-char non-blank currency like `"USDD"` slips past the guard.
+  Test-shape fix: parameterised `[Theory]` covering 2-, 3-, 4-character
+  cases.
+- **mut-2 — `Budget.OpenRevision` revision-number autoincrement
+  (`Max(...) + 1`) survives `Max → Min` mutation.** No test creates a
+  scenario with >2 revisions, and none has a revision-number gap. Test-shape
+  fix: a sequence that yields 3 revisions and asserts strict monotonic
+  increase.
+- **mut-3 — `Budget.LatestApproved` returns null when no revision is
+  approved, but no test asserts this.** `FirstOrDefault → First` survives.
+  Test-shape fix:
+  `Latest_approved_returns_null_when_no_revision_is_approved`.
+- **mut-4 — `Money.RequireSameCurrency` and the `Money` length check have
+  several surviving equality mutations.** Same root cause as mut-1.
+- **mut-5 — `ProjectCommercialConfiguration.UpdateConfiguration`
+  "patch-with-null" branch is untested.** Calling with
+  `overCommitmentGuard: null` should preserve the existing value; the
+  test doesn't pin this. The pattern itself is a design smell (a smell
+  noted before mutation testing; this is independent corroboration).
+
+These findings are not blocking and not gated on Sprint 7. The natural
+moment to action them is when a domain area is being touched anyway — e.g.,
+F3 will modify `Commitment` extensively, so addressing mut-4 / mut-5 then
+costs nothing extra.
+
 The codebase is in **very good shape**. The bar set by `CLAUDE.md` is high
 and the code mostly meets it: aggregates with private setters, MediatR
 handlers, Result return type, structured logging via source-generated
