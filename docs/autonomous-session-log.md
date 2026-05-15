@@ -7,6 +7,37 @@
 
 ---
 
+## Session 3 (resume #2) — in progress
+
+Re-triage of the 12 open items (the log previously said "6 minors/nits" — actual
+count is 1 major + 5 minors + 6 nits + the outbox dispatcher = 13). Each item
+classified as one of: **do now**, **promote to ADR**, **genuinely defer** (with
+a *specific* unblocker — not "awaiting clarification").
+
+| ID | Triage | Rationale |
+|---|---|---|
+| M-1 dispatcher | **Do now (partial)** | The poll/claim/retry/mark-dispatched machinery doesn't need the CIMS spec — only the transport does. Build dispatcher + NoOp transport + tests; transport implementation stays a single seam for when the CIMS spec lands. |
+| M-6 (BoQ decimal precision >4dp) | **Do now** | Single-file parser change, isolated; can fail-fast on inputs whose precision exceeds the column type. |
+| m-2 (InboxEventDispatcher direct unit tests) | **Do now** | Already at ~85% behavioural coverage via F1ImportSliceTests. Extract `VerifySignature` so it has direct unit tests for bit-flip / FixedTimeEquals correctness. |
+| m-4 (Inbox internal visibility) | **Defer — closed by symmetry** | The outbox built in M-1 followed the same internal pattern. Finding is now a design note documenting consistency, not an open action. |
+| m-5 (Polly retry vs total timeout) | **Do now** | Write a unit test that asserts the cumulative max retry budget is bounded below the outer `HttpClient.Timeout`. Catches future config drift. |
+| m-6 (.Include eager loading) | **Defer** | Unblocker: when a project has >30 revisions or >5000 budget lines, or when the Budget list page exceeds 500 ms in production. Not measurable today. |
+| m-7 (FinancialsRole.Unknown) | **Defer** | Unblocker: decision from the CIMS team on whether `Unknown` is a legitimate role value in cross-product payloads, or should be a contract violation that fails the deserialiser. |
+| n-1 (Result<T>.Value nullable) | **Defer — promote to ADR** | API change touches every caller of `Result<T>.Value`. Unblocker: a dedicated ADR proposing `Result<T> where T : notnull` + a sprint-sized callsite migration. Out of scope for a hardening pass. |
+| n-2 (CA1030 test suppression in `tests/Directory.Build.props`) | **Do now** | Verify the rule has actually stopped firing; remove the suppression if so; otherwise leave it with a one-line comment naming the rule and the offending site. |
+| n-3 (CompositeFormat grouping in `CimsClient`) | **Do now** | Pure cosmetic file reorganisation in one file. |
+| n-4 (EF private constructor comment) | **Do now** | Single-line comment additions on each aggregate's parameterless ctor. |
+| n-5 (appsettings webhook secret friendliness) | **Do now** | Improve the startup validation error message naming the user-secrets key. |
+| n-7 (CA1812 duplication) | **Do now** | Assembly-level `[SuppressMessage]` in `AssemblyInfo.cs` replaces 11 per-class copies. |
+
+**Do-now pile (8 items + dispatcher partial):** M-6, m-2, m-5, n-2, n-3, n-4, n-5, n-7, plus M-1 dispatcher.
+**Genuinely deferred (4 items):** m-4 (closed by symmetry), m-6 (latency unblocker), m-7 (CIMS conversation), n-1 (own ADR + sprint).
+
+Work order: do-nows by ascending risk; then outbox dispatcher; then architecture
+tests; then mutation testing; then docs; then final pass.
+
+---
+
 ## Final Summary
 
 **Branch:** `chore/autonomous-hardening-2026-05-15` (off `main` post-Sprint-6)
