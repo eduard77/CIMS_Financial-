@@ -3,6 +3,7 @@ using Financials.Domain.Budgets;
 using Financials.Domain.Commitments;
 using Financials.Domain.Projects;
 using Financials.Infrastructure.Inbox;
+using Financials.Infrastructure.Outbox;
 using Microsoft.EntityFrameworkCore;
 
 namespace Financials.Infrastructure.Persistence;
@@ -28,6 +29,8 @@ public class FinancialsDbContext : DbContext, IFinancialsDbContext
     public DbSet<CommitmentInsurance> CommitmentInsurances => Set<CommitmentInsurance>();
 
     internal DbSet<InboxEvent> InboxEvents => Set<InboxEvent>();
+
+    internal DbSet<OutboxEvent> OutboxEvents => Set<OutboxEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

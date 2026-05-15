@@ -2,6 +2,7 @@ using Financials.Application.Budgets;
 using Financials.Application.Cims;
 using Financials.Application.Commitments;
 using Financials.Application.Common;
+using Financials.Application.Outbox;
 using Financials.Application.Persistence;
 using Financials.Application.Projects;
 using Financials.Infrastructure.Budgets;
@@ -10,6 +11,7 @@ using Financials.Infrastructure.Commitments;
 using Financials.Infrastructure.Common;
 using Financials.Infrastructure.HealthChecks;
 using Financials.Infrastructure.Inbox;
+using Financials.Infrastructure.Outbox;
 using Financials.Infrastructure.Persistence;
 using Financials.Infrastructure.Projects;
 using Microsoft.EntityFrameworkCore;
@@ -56,6 +58,12 @@ public static class InfrastructureServiceCollectionExtensions
             .Validate(o => !string.IsNullOrWhiteSpace(o.Secret),
                 "Cims:Webhook:Secret is required (ADR-0007).");
         services.AddScoped<IInboxEventDispatcher, InboxEventDispatcher>();
+
+        // Pattern B write-side outbox (ADR-0002). The dispatcher hosted service
+        // is deferred until the CIMS-side webhook target is specified; today
+        // the publisher only stages rows in the same EF transaction as the
+        // aggregate mutation.
+        services.AddScoped<IOutboxEventPublisher, OutboxEventPublisher>();
 
         services.AddHealthChecks()
             .AddCheck<FinancialsDbHealthCheck>("financials-db")
