@@ -90,7 +90,7 @@ public sealed partial class ScheduleActivityCostLoadedHandler
                 workPackage: payload.WorkPackage,
                 activityId: payload.ActivityId);
         }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        catch (DomainException ex)
         {
             LogLineRejected(_logger, ex, payload.ActivityId, draft.Id);
             return;

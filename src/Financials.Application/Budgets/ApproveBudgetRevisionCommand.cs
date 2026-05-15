@@ -1,5 +1,6 @@
 using Financials.Application.Common;
 using Financials.Application.Persistence;
+using Financials.Domain.Common;
 using FluentValidation;
 using MediatR;
 
@@ -44,13 +45,13 @@ public sealed class ApproveBudgetRevisionCommandHandler
 
         if (string.IsNullOrEmpty(_currentUser.UserId))
         {
-            return Result.Failure("An authenticated user is required to approve a revision.");
+            return Result.Unauthorized("An authenticated user is required to approve a revision.");
         }
 
         var budget = await _budgets.FindByIdAsync(request.BudgetId, cancellationToken).ConfigureAwait(false);
         if (budget is null)
         {
-            return Result.Failure($"Budget {request.BudgetId} not found.");
+            return Result.NotFound($"Budget {request.BudgetId} not found.");
         }
 
         try
@@ -60,13 +61,9 @@ public sealed class ApproveBudgetRevisionCommandHandler
             await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             return Result.Success();
         }
-        catch (InvalidOperationException ex)
+        catch (DomainException ex)
         {
-            return Result.Failure(ex.Message);
-        }
-        catch (ArgumentException ex)
-        {
-            return Result.Failure(ex.Message);
+            return Result.Failure(ex.Reason, ex.Message);
         }
     }
 }

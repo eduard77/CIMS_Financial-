@@ -1,5 +1,6 @@
 using Financials.Application.Common;
 using Financials.Application.Persistence;
+using Financials.Domain.Common;
 using FluentValidation;
 using MediatR;
 
@@ -37,7 +38,7 @@ public sealed class OpenBudgetRevisionCommandHandler
         var budget = await _budgets.FindByIdAsync(request.BudgetId, cancellationToken).ConfigureAwait(false);
         if (budget is null)
         {
-            return Result<Guid>.Failure($"Budget {request.BudgetId} not found.");
+            return Result<Guid>.NotFound($"Budget {request.BudgetId} not found.");
         }
 
         try
@@ -46,9 +47,9 @@ public sealed class OpenBudgetRevisionCommandHandler
             await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             return Result<Guid>.Success(revision.Id);
         }
-        catch (InvalidOperationException ex)
+        catch (DomainException ex)
         {
-            return Result<Guid>.Failure(ex.Message);
+            return Result<Guid>.Failure(ex.Reason, ex.Message);
         }
     }
 }

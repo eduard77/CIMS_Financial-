@@ -5,6 +5,8 @@ using Financials.Domain.Common;
 using FluentValidation;
 using MediatR;
 
+// Domain.Common gives us Money + DomainException + FailureReason in one using.
+
 namespace Financials.Application.Budgets;
 
 /// <summary>
@@ -60,7 +62,7 @@ public sealed class ImportBoqCommandHandler : IRequestHandler<ImportBoqCommand, 
 
         if (budget is null)
         {
-            return Result<ImportBoqResult>.Failure(
+            return Result<ImportBoqResult>.NotFound(
                 $"No budget exists for project {doc.FinancialsProjectId}. Create a budget first.");
         }
 
@@ -68,6 +70,7 @@ public sealed class ImportBoqCommandHandler : IRequestHandler<ImportBoqCommand, 
             && !string.Equals(currency, budget.Currency, StringComparison.OrdinalIgnoreCase))
         {
             return Result<ImportBoqResult>.Failure(
+                FailureReason.ValidationFailed,
                 $"BoQ currency '{currency}' does not match budget currency '{budget.Currency}'.");
         }
 
@@ -78,9 +81,9 @@ public sealed class ImportBoqCommandHandler : IRequestHandler<ImportBoqCommand, 
             {
                 draft = budget.OpenRevision(doc.RevisionReason);
             }
-            catch (InvalidOperationException ex)
+            catch (DomainException ex)
             {
-                return Result<ImportBoqResult>.Failure(ex.Message);
+                return Result<ImportBoqResult>.Failure(ex.Reason, ex.Message);
             }
         }
 
@@ -111,9 +114,11 @@ public sealed class ImportBoqCommandHandler : IRequestHandler<ImportBoqCommand, 
                 existingLineNumbers.Add(line.LineNumber);
                 imported++;
             }
-            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+            catch (DomainException ex)
             {
-                lineErrors.Add($"Line {line.LineNumber}: {ex.Message}");
+                // Per-line collection is intentional — one bad line should not block the rest.
+                // Failure reason is preserved in the log but the per-line message is what the user sees.
+                lineErrors.Add($"Line {line.LineNumber} ({ex.Reason}): {ex.Message}");
             }
         }
 

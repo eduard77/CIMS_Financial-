@@ -41,7 +41,7 @@ public sealed class CreateBudgetCommandHandler : IRequestHandler<CreateBudgetCom
 
         if (existing is not null)
         {
-            return Result<Guid>.Failure(
+            return Result<Guid>.Conflict(
                 $"A budget already exists for project {request.FinancialsProjectId}.");
         }
 

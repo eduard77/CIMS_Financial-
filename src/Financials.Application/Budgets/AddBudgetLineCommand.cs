@@ -54,7 +54,7 @@ public sealed class AddBudgetLineCommandHandler : IRequestHandler<AddBudgetLineC
         var budget = await _budgets.FindByIdAsync(request.BudgetId, cancellationToken).ConfigureAwait(false);
         if (budget is null)
         {
-            return Result<Guid>.Failure($"Budget {request.BudgetId} not found.");
+            return Result<Guid>.NotFound($"Budget {request.BudgetId} not found.");
         }
 
         try
@@ -72,9 +72,9 @@ public sealed class AddBudgetLineCommandHandler : IRequestHandler<AddBudgetLineC
             await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             return Result<Guid>.Success(line.Id);
         }
-        catch (InvalidOperationException ex)
+        catch (DomainException ex)
         {
-            return Result<Guid>.Failure(ex.Message);
+            return Result<Guid>.Failure(ex.Reason, ex.Message);
         }
     }
 }

@@ -22,7 +22,8 @@ public class BudgetTests
         var act = () => budget.AddLineToCurrentDraft(
             1, CostCodeA, "EU spend", 1m, "no", new Money(100m, "EUR"));
 
-        act.Should().Throw<InvalidOperationException>()
+        act.Should().Throw<DomainException>()
+            .Where(ex => ex.Reason == FailureReason.ValidationFailed)
             .WithMessage("*EUR*GBP*");
     }
 
@@ -34,7 +35,8 @@ public class BudgetTests
         var act = () => budget.AddLineToCurrentDraft(
             1, CostCodeA, "x", 1m, "no", Money.Gbp(1m));
 
-        act.Should().Throw<InvalidOperationException>()
+        act.Should().Throw<DomainException>()
+            .Where(ex => ex.Reason == FailureReason.PreconditionFailed)
             .WithMessage("*No draft revision is open*");
     }
 
@@ -47,7 +49,8 @@ public class BudgetTests
         var act = () => budget.AddLineToRevision(
             revision.Id, 1, CostCodeA, "EU spend", 1m, "no", new Money(100m, "EUR"));
 
-        act.Should().Throw<InvalidOperationException>()
+        act.Should().Throw<DomainException>()
+            .Where(ex => ex.Reason == FailureReason.ValidationFailed)
             .WithMessage("*EUR*GBP*");
     }
 
@@ -61,7 +64,8 @@ public class BudgetTests
         var act = () => budget.AddLineToRevision(
             foreignRevisionId, 1, CostCodeA, "x", 1m, "no", Money.Gbp(1m));
 
-        act.Should().Throw<InvalidOperationException>()
+        act.Should().Throw<DomainException>()
+            .Where(ex => ex.Reason == FailureReason.NotFound)
             .WithMessage($"*{foreignRevisionId}*not part of*");
     }
 
@@ -96,7 +100,9 @@ public class BudgetTests
     {
         var act = () => Budget.Create(Guid.Empty);
 
-        act.Should().Throw<ArgumentException>().WithParameterName("financialsProjectId");
+        act.Should().Throw<DomainException>()
+            .Where(ex => ex.Reason == FailureReason.ValidationFailed)
+            .WithMessage("*FinancialsProjectId is required*");
     }
 
     [Fact]
@@ -122,7 +128,9 @@ public class BudgetTests
 
         var act = () => budget.OpenRevision("second");
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*draft revision is already open*");
+        act.Should().Throw<DomainException>()
+            .Where(ex => ex.Reason == FailureReason.PreconditionFailed)
+            .WithMessage("*draft revision is already open*");
     }
 
     [Fact]
@@ -132,7 +140,9 @@ public class BudgetTests
 
         var act = () => budget.OpenRevision("");
 
-        act.Should().Throw<ArgumentException>().WithParameterName("reason");
+        act.Should().Throw<DomainException>()
+            .Where(ex => ex.Reason == FailureReason.ValidationFailed)
+            .WithMessage("*reason*required*");
     }
 
     [Fact]
@@ -154,7 +164,9 @@ public class BudgetTests
 
         var act = () => revision.AddLine(1, CostCodeB, "Foundations", 1m, "m3", Money.Gbp(20m));
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*Line number 1 already exists*");
+        act.Should().Throw<DomainException>()
+            .Where(ex => ex.Reason == FailureReason.Conflict)
+            .WithMessage("*Line number 1 already exists*");
     }
 
     [Fact]
@@ -166,7 +178,9 @@ public class BudgetTests
 
         var act = () => revision.AddLine(2, CostCodeB, "Foundations", 1m, "m3", Money.Gbp(20m));
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*Approved*");
+        act.Should().Throw<DomainException>()
+            .Where(ex => ex.Reason == FailureReason.PreconditionFailed)
+            .WithMessage("*Approved*");
     }
 
     [Fact]
@@ -190,7 +204,9 @@ public class BudgetTests
 
         var act = () => revision.Approve("user-1", DateTime.UtcNow);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*has no lines*");
+        act.Should().Throw<DomainException>()
+            .Where(ex => ex.Reason == FailureReason.PreconditionFailed)
+            .WithMessage("*has no lines*");
     }
 
     [Fact]
@@ -202,7 +218,9 @@ public class BudgetTests
 
         var act = () => revision.Approve("user-1", DateTime.UtcNow);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*already approved*");
+        act.Should().Throw<DomainException>()
+            .Where(ex => ex.Reason == FailureReason.PreconditionFailed)
+            .WithMessage("*already approved*");
     }
 
     [Fact]
@@ -213,7 +231,9 @@ public class BudgetTests
 
         var act = () => revision.Approve("", DateTime.UtcNow);
 
-        act.Should().Throw<ArgumentException>().WithParameterName("approverUserId");
+        act.Should().Throw<DomainException>()
+            .Where(ex => ex.Reason == FailureReason.ValidationFailed)
+            .WithMessage("*approver user id*");
     }
 
     [Fact]

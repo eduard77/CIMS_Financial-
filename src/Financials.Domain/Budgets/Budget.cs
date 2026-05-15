@@ -44,16 +44,13 @@ public sealed class Budget : IAuditable
     {
         if (financialsProjectId == Guid.Empty)
         {
-            throw new ArgumentException(
-                "FinancialsProjectId is required.",
-                nameof(financialsProjectId));
+            throw DomainException.ValidationFailed("FinancialsProjectId is required.");
         }
 
         if (string.IsNullOrWhiteSpace(currency) || currency.Length != 3)
         {
-            throw new ArgumentException(
-                "Currency must be a 3-letter ISO 4217 code.",
-                nameof(currency));
+            throw DomainException.ValidationFailed(
+                "Currency must be a 3-letter ISO 4217 code.");
         }
 
         return new Budget
@@ -68,7 +65,7 @@ public sealed class Budget : IAuditable
     {
         if (_revisions.Any(r => r.Status == BudgetRevisionStatus.Draft))
         {
-            throw new InvalidOperationException(
+            throw DomainException.PreconditionFailed(
                 "A draft revision is already open. Approve or discard it before opening another.");
         }
 
@@ -83,7 +80,7 @@ public sealed class Budget : IAuditable
     public BudgetRevision GetRevision(Guid revisionId)
     {
         var revision = _revisions.FirstOrDefault(r => r.Id == revisionId)
-            ?? throw new InvalidOperationException(
+            ?? throw new DomainException(FailureReason.NotFound,
                 $"Revision {revisionId} is not part of budget {Id}.");
         return revision;
     }
@@ -114,7 +111,7 @@ public sealed class Budget : IAuditable
         Guid? activityId = null)
     {
         var draft = CurrentDraft()
-            ?? throw new InvalidOperationException(
+            ?? throw DomainException.PreconditionFailed(
                 "No draft revision is open. Open a revision before adding lines.");
 
         return AddLineToRevisionInternal(draft, lineNumber, cimsCostCodeId, description,
@@ -157,7 +154,7 @@ public sealed class Budget : IAuditable
 
         if (!string.Equals(unitRate.Currency, Currency, StringComparison.Ordinal))
         {
-            throw new InvalidOperationException(
+            throw DomainException.ValidationFailed(
                 $"Line currency {unitRate.Currency} does not match budget currency {Currency}.");
         }
 

@@ -36,7 +36,8 @@ public sealed class BudgetRevision
     {
         if (string.IsNullOrWhiteSpace(reason))
         {
-            throw new ArgumentException("A reason is required when opening a budget revision.", nameof(reason));
+            throw DomainException.ValidationFailed(
+                "A reason is required when opening a budget revision.");
         }
 
         return new BudgetRevision
@@ -66,13 +67,13 @@ public sealed class BudgetRevision
     {
         if (Status != BudgetRevisionStatus.Draft)
         {
-            throw new InvalidOperationException(
+            throw DomainException.PreconditionFailed(
                 $"Cannot add lines to revision {RevisionNumber}: it is {Status}.");
         }
 
         if (_lines.Any(l => l.LineNumber == lineNumber))
         {
-            throw new InvalidOperationException(
+            throw DomainException.Conflict(
                 $"Line number {lineNumber} already exists in revision {RevisionNumber}.");
         }
 
@@ -95,20 +96,19 @@ public sealed class BudgetRevision
     {
         if (Status == BudgetRevisionStatus.Approved)
         {
-            throw new InvalidOperationException(
+            throw DomainException.PreconditionFailed(
                 $"Revision {RevisionNumber} is already approved.");
         }
 
         if (string.IsNullOrWhiteSpace(approverUserId))
         {
-            throw new ArgumentException(
-                "An approver user id is required.",
-                nameof(approverUserId));
+            throw DomainException.ValidationFailed(
+                "An approver user id is required.");
         }
 
         if (_lines.Count == 0)
         {
-            throw new InvalidOperationException(
+            throw DomainException.PreconditionFailed(
                 $"Cannot approve revision {RevisionNumber}: it has no lines.");
         }
 
