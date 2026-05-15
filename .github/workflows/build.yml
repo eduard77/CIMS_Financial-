@@ -15,9 +15,28 @@ env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
 
 jobs:
+  format:
+    name: Format check (dotnet format --verify-no-changes)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore (needed by dotnet format for analyzer resolution)
+        run: dotnet restore Financials.sln
+
+      - name: Verify format
+        run: dotnet format Financials.sln --verify-no-changes --no-restore --verbosity diagnostic
+
   build-and-test:
     name: Build and test (unit + infrastructure)
     runs-on: ubuntu-latest
+    needs: format
 
     steps:
       - name: Checkout
