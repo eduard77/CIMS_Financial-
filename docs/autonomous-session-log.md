@@ -11,44 +11,95 @@
 
 **Branch:** `chore/autonomous-hardening-2026-05-15` (off `main` post-Sprint-6)
 **Base:** `653495c` (Merge PR #8 — Sprint 6 F2 closeout)
-**Commits made (oldest → newest):**
 
+**Commits across both sessions (oldest → newest):**
+
+Session 1 (initial pass — Phases 1–6, findings document):
 1. `58e50b4` — Start autonomous hardening session log
-2. `27fd0fb` — Phase 2 coverage: BoqXmlParser, CommitmentInsurance, inbox dispatcher edges
-3. `c0d7aa3` — Phase 4: dotnet format clean (BOM strip on EF migrations, IDE0161 in migrations rule)
+2. `27fd0fb` — Phase 2 coverage (BoqXmlParser, CommitmentInsurance, inbox dispatcher edges)
+3. `c0d7aa3` — Phase 4: BOM strip on EF migrations, IDE0161 silenced in migrations
 4. `0423ac0` — Phase 5: CI format gate + CONTRIBUTING.md + README status refresh
-5. _(this one)_ — Phase 6: code review findings + session log final summary
+5. `1f3ff20` — Phase 6: code review findings written; session log final summary
 
-**Phases completed:** all six. Phase 1 was already satisfied on the base commit
-(see "Discrepancy" section below).
+Session 2 (continuation — work the findings):
+6. `23ea095` — Phase 3 audit revision: M-7, M-8, m-9, m-10 added after end-to-end read
+7. `1a7446b` — M-5: BoQ parser strict invariant-culture decimal
+8. `325e066` — M-7 + M-8: aggregate currency enforcement + poison-message guard
+9. `4a67929` — M-4 foundation: ADR-0001, FailureReason, DomainException, Result overloads
+10. `abbd072` — M-4 slice 1 of 2: F1 Budget aggregate + handlers
+11. `01d9584` — M-4 slice 2 of 2: F2 Commitment + F0 aggregates + handlers
+12. `cdd915a` — M-1 (write-side): outbox entity, table, publisher, atomicity tests
+13. `d63d930` — M-2 + M-3: handler-level authorization + role-permission contract tests
+14. `bbee54d` — minors: m-1 (seal DbContext), m-3 (ValidationFailure non-empty), m-9, m-10
 
-**Tests:** 138 → 181 (+43). All green on Release. Format check (`dotnet format
---verify-no-changes`) exits 0 across the whole solution.
+**Tests:** 138 → 232 (+94). All green on Release and Debug.
+Format check (`dotnet format --verify-no-changes`) exits 0.
+
+**Findings queue status (`docs/code-review-findings.md`):**
+
+| ID | Status |
+|---|---|
+| Critical | None |
+| M-1 (outbox) | **Write-side done**; dispatcher deferred per ADR-0002 (needs CIMS-side spec) |
+| M-2 (handler auth) | **Done** |
+| M-3 (role-permission contract) | **Done** |
+| M-4 (Result/FailureReason) | **Done** |
+| M-5 (BoQ comma thousands) | **Done** |
+| M-6 (BoQ decimal precision) | Open — minor data-quality finding |
+| M-7 (Budget line currency) | **Done** |
+| M-8 (poison-message handler) | **Done** |
+| m-1 (DbContext sealed) | **Done** |
+| m-2 (InboxEventDispatcher unit tests) | Open — integration tests give ~85% coverage |
+| m-3 (ValidationFailure non-empty) | **Done** |
+| m-4 (Inbox visibility) | Open — design note, no action |
+| m-5 (Polly retry vs timeout) | Open — guard test would be the right fix |
+| m-6 (.Include eager loading) | Open — revisit at higher data volumes |
+| m-7 (FinancialsRole.Unknown) | Open — CIMS conversation |
+| m-8 (Page-policy sync) | Closed by M-2 (now handler-level too) |
+| m-9 (Reconciliation hardcoded GBP) | **Done** |
+| m-10 (cross-currency sum) | **Done** |
+| n-1 (Result.Value nullability) | Open — touches every caller |
+| n-2 (CA1030 test suppression) | Open — re-check after broader changes settle |
+| n-3 (CompositeFormat grouping) | Open — cosmetic |
+| n-4 (EF constructor comments) | Open — cosmetic |
+| n-5 (appsettings webhook secret) | Open — friendliness fix |
+| n-6 (README status refresh) | **Done** in session 1 |
+| n-7 (CA1812 duplication) | Open — assembly-level suppression would cover all 11 |
 
 **Anything left undone:**
 
-- The `ChangeEvent.cs` / CA1030 fix in the prompt — does not exist on this
-  branch. Skipped intentionally (see discrepancy).
-- The findings in `docs/code-review-findings.md` are documented but **not**
-  implemented. The prompt was explicit: "Do not fix these yet."
-- The integration ring still depends on Testcontainers for SQL; no Docker-free
-  test path was introduced. That was not a goal of this session.
-- No new external NuGet packages added (per prompt).
-- No public API in `Financials.Contracts` changed (no breaking changes).
+- M-1 dispatcher (background hosted service that drains the outbox and POSTs
+  to CIMS). Deferred per ADR-0002 because the CIMS-side webhook target is
+  not yet specified. Sprint 7 F3 can already use the *write-side* outbox.
+- Six open minors / nits as listed above. Not blocking anything.
+- The CA1030 ChangeEvent.cs error in the original prompt — `ChangeEvent.cs`
+  still does not exist (Sprint 7 F3 not started). Session-1 decision stands.
+- Some Razor pages still `using Financials.Web.Auth` for the now-moved
+  `AuthorizationPolicies` constants. The shim in `Web/Auth/AuthorizationPolicies.cs`
+  keeps them compiling but should be deleted next sprint and the usages
+  pointed at `Financials.Application.Common.Authorization` directly.
 
 **Top 3 things to look at first when reviewing:**
 
-1. **`docs/code-review-findings.md` finding M-1** — the Pattern B outbox is not
-   yet built, and Sprint 7 F3 needs it. This is the only finding that *gates*
-   the next sprint. Everything else is incremental.
-2. **The Phase 4 commit (`c0d7aa3`)** — stripping the UTF-8 BOM from 17 EF
-   migration files is a low-risk, high-blast-radius change (lots of files,
-   tiny per-file diff). `MigrationSmokeTests` still passes against the
-   stripped files, but worth eyeballing one migration's diff to confirm only
-   the BOM moved and the SQL is byte-identical.
-3. **`CONTRIBUTING.md`** — fresh doc, deliberately not copying CLAUDE.md.
-   Worth a read-through to make sure I haven't put words in your mouth on
-   the "what to ask the maintainer before doing" list.
+1. **ADR-0001 (`docs/adr/0001-failure-vs-exception.md`)** — this is the
+   convention shift that drove the M-4 refactor across every aggregate and
+   handler. If you disagree with the FailureReason set or the
+   DomainException-as-single-carrier approach, the rest of the M-4 work
+   would need rework.
+2. **The outbox atomicity test** in
+   `tests/Financials.Infrastructure.Tests/Outbox/OutboxEventPublisherTests.cs`
+   — specifically `Atomicity_aggregate_and_outbox_commit_together`. This
+   pins the Pattern B contract that aggregate-state + outbox row are
+   committed together. F3 (Sprint 7) inherits this guarantee; worth
+   reading before F3 starts to confirm the shape matches what the change-
+   event handlers will need.
+3. **M-2 / M-3 plumbing** in
+   `src/Financials.Application/Common/Authorization/` and the two new
+   contract test files. Sanity check: are the `[RequiresPermission(...)]`
+   choices what you'd have made for each command? They're documented in
+   the M-2/M-3 commit message; the contract test will catch any future
+   drift (typo, missing attribute on new command, dangling policy
+   constant).
 
 ---
 
