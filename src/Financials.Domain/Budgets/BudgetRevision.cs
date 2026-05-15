@@ -49,7 +49,12 @@ public sealed class BudgetRevision
         };
     }
 
-    public BudgetLine AddLine(
+    /// <summary>
+    /// Add a line to this revision. Currency enforcement against the parent
+    /// budget happens at <see cref="Budget.AddLineToCurrentDraft"/>; callers
+    /// from outside the aggregate must go through there.
+    /// </summary>
+    internal BudgetLine AddLine(
         int lineNumber,
         Guid cimsCostCodeId,
         string description,

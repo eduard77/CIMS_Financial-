@@ -11,6 +11,75 @@ public class BudgetTests
 
     private static Budget NewBudget() => Budget.Create(ProjectId);
 
+    // --- M-7: line currency must match budget currency ---------------------
+
+    [Fact]
+    public void AddLineToCurrentDraft_rejects_a_line_in_a_different_currency_from_the_budget()
+    {
+        var budget = Budget.Create(ProjectId, "GBP");
+        budget.OpenRevision("initial");
+
+        var act = () => budget.AddLineToCurrentDraft(
+            1, CostCodeA, "EU spend", 1m, "no", new Money(100m, "EUR"));
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*EUR*GBP*");
+    }
+
+    [Fact]
+    public void AddLineToCurrentDraft_throws_when_no_draft_is_open()
+    {
+        var budget = NewBudget();
+
+        var act = () => budget.AddLineToCurrentDraft(
+            1, CostCodeA, "x", 1m, "no", Money.Gbp(1m));
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*No draft revision is open*");
+    }
+
+    [Fact]
+    public void AddLineToRevision_rejects_a_line_in_a_different_currency_from_the_budget()
+    {
+        var budget = Budget.Create(ProjectId, "GBP");
+        var revision = budget.OpenRevision("initial");
+
+        var act = () => budget.AddLineToRevision(
+            revision.Id, 1, CostCodeA, "EU spend", 1m, "no", new Money(100m, "EUR"));
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*EUR*GBP*");
+    }
+
+    [Fact]
+    public void AddLineToRevision_throws_when_revision_does_not_belong_to_budget()
+    {
+        var budget = NewBudget();
+        budget.OpenRevision("initial");
+        var foreignRevisionId = Guid.NewGuid();
+
+        var act = () => budget.AddLineToRevision(
+            foreignRevisionId, 1, CostCodeA, "x", 1m, "no", Money.Gbp(1m));
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage($"*{foreignRevisionId}*not part of*");
+    }
+
+    [Fact]
+    public void AddLineToCurrentDraft_succeeds_for_a_matching_currency_and_appends_to_the_draft()
+    {
+        var budget = NewBudget();
+        var draft = budget.OpenRevision("initial");
+
+        var line = budget.AddLineToCurrentDraft(
+            1, CostCodeA, "Excavation", 10m, "m3", Money.Gbp(12.50m));
+
+        line.Should().NotBeNull();
+        draft.Lines.Should().ContainSingle().Which.Id.Should().Be(line.Id);
+    }
+
+    // --- End M-7 ------------------------------------------------------------
+
     [Fact]
     public void Create_assigns_id_and_defaults_currency_to_GBP()
     {

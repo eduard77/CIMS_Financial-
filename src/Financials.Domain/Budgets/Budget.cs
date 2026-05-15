@@ -96,4 +96,79 @@ public sealed class Budget : IAuditable
             .Where(r => r.Status == BudgetRevisionStatus.Approved)
             .OrderByDescending(r => r.RevisionNumber)
             .FirstOrDefault();
+
+    /// <summary>
+    /// Add a line to the currently-open draft revision. Going through the
+    /// aggregate root means the budget's <see cref="Currency"/> is enforced
+    /// against the supplied <paramref name="unitRate"/>, defending against
+    /// silent FX mismatches between budget and line.
+    /// </summary>
+    public BudgetLine AddLineToCurrentDraft(
+        int lineNumber,
+        Guid cimsCostCodeId,
+        string description,
+        decimal quantity,
+        string unitOfMeasure,
+        Money unitRate,
+        string? workPackage = null,
+        Guid? activityId = null)
+    {
+        var draft = CurrentDraft()
+            ?? throw new InvalidOperationException(
+                "No draft revision is open. Open a revision before adding lines.");
+
+        return AddLineToRevisionInternal(draft, lineNumber, cimsCostCodeId, description,
+            quantity, unitOfMeasure, unitRate, workPackage, activityId);
+    }
+
+    /// <summary>
+    /// Add a line to a specific (still-mutable) revision of this budget.
+    /// Same currency enforcement as <see cref="AddLineToCurrentDraft"/>.
+    /// Throws if the revision is not a child of this budget.
+    /// </summary>
+    public BudgetLine AddLineToRevision(
+        Guid revisionId,
+        int lineNumber,
+        Guid cimsCostCodeId,
+        string description,
+        decimal quantity,
+        string unitOfMeasure,
+        Money unitRate,
+        string? workPackage = null,
+        Guid? activityId = null)
+    {
+        var revision = GetRevision(revisionId);
+        return AddLineToRevisionInternal(revision, lineNumber, cimsCostCodeId, description,
+            quantity, unitOfMeasure, unitRate, workPackage, activityId);
+    }
+
+    private BudgetLine AddLineToRevisionInternal(
+        BudgetRevision revision,
+        int lineNumber,
+        Guid cimsCostCodeId,
+        string description,
+        decimal quantity,
+        string unitOfMeasure,
+        Money unitRate,
+        string? workPackage,
+        Guid? activityId)
+    {
+        ArgumentNullException.ThrowIfNull(unitRate);
+
+        if (!string.Equals(unitRate.Currency, Currency, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Line currency {unitRate.Currency} does not match budget currency {Currency}.");
+        }
+
+        return revision.AddLine(
+            lineNumber,
+            cimsCostCodeId,
+            description,
+            quantity,
+            unitOfMeasure,
+            unitRate,
+            workPackage,
+            activityId);
+    }
 }

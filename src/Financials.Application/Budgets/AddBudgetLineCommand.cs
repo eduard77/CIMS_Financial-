@@ -59,8 +59,8 @@ public sealed class AddBudgetLineCommandHandler : IRequestHandler<AddBudgetLineC
 
         try
         {
-            var revision = budget.GetRevision(request.BudgetRevisionId);
-            var line = revision.AddLine(
+            var line = budget.AddLineToRevision(
+                request.BudgetRevisionId,
                 request.LineNumber,
                 request.CimsCostCodeId,
                 request.Description,

@@ -98,7 +98,8 @@ public sealed class ImportBoqCommandHandler : IRequestHandler<ImportBoqCommand, 
 
             try
             {
-                draft.AddLine(
+                budget.AddLineToRevision(
+                    draft.Id,
                     line.LineNumber,
                     line.CimsCostCodeId,
                     line.Description,

@@ -73,19 +73,36 @@ public sealed partial class ScheduleActivityCostLoadedHandler
             : draft.Lines.Max(l => l.LineNumber) + 1;
 
         var unitRate = new Money(payload.UnitRateAmount, payload.UnitRateCurrency);
-        draft.AddLine(
-            lineNumber: nextLineNumber,
-            cimsCostCodeId: payload.CimsCostCodeId,
-            description: payload.ActivityName,
-            quantity: payload.Quantity,
-            unitOfMeasure: payload.UnitOfMeasure,
-            unitRate: unitRate,
-            workPackage: payload.WorkPackage,
-            activityId: payload.ActivityId);
+
+        // Go through the aggregate root so Budget enforces the
+        // line-currency == budget-currency invariant (M-7). The handler
+        // catches the domain exception (M-8) to prevent a poison payload
+        // from rolling back the inbox transaction and causing infinite retries.
+        try
+        {
+            budget.AddLineToCurrentDraft(
+                lineNumber: nextLineNumber,
+                cimsCostCodeId: payload.CimsCostCodeId,
+                description: payload.ActivityName,
+                quantity: payload.Quantity,
+                unitOfMeasure: payload.UnitOfMeasure,
+                unitRate: unitRate,
+                workPackage: payload.WorkPackage,
+                activityId: payload.ActivityId);
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        {
+            LogLineRejected(_logger, ex, payload.ActivityId, draft.Id);
+            return;
+        }
 
         await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         LogLineAdded(_logger, payload.ActivityId, draft.Id);
     }
+
+    [LoggerMessage(EventId = 5, Level = LogLevel.Warning,
+        Message = "ScheduleActivityCostLoaded for activity {ActivityId} on draft revision {RevisionId} was rejected by the budget aggregate; event will be marked processed and not retried.")]
+    private static partial void LogLineRejected(ILogger logger, Exception exception, Guid activityId, Guid revisionId);
 
     [LoggerMessage(EventId = 1, Level = LogLevel.Warning,
         Message = "ScheduleActivityCostLoaded for CIMS project {CimsProjectId} ignored: project not confirmed in Financials. ActivityId={ActivityId}")]

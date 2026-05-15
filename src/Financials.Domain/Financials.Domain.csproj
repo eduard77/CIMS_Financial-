@@ -9,4 +9,14 @@
     -->
   </PropertyGroup>
 
+  <ItemGroup>
+    <!--
+      Test projects directly exercise internal aggregate methods such as
+      BudgetRevision.AddLine to pin per-revision invariants. Production
+      callers go through the aggregate root (e.g. Budget.AddLineToCurrentDraft).
+    -->
+    <InternalsVisibleTo Include="Financials.Domain.Tests" />
+    <InternalsVisibleTo Include="Financials.Application.Tests" />
+  </ItemGroup>
+
 </Project>
