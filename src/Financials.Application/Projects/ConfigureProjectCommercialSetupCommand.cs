@@ -20,7 +20,8 @@ public sealed record ConfigureProjectCommercialSetupCommand(
     decimal RetentionReleaseAtDLPEndPercentage,
     int PaymentNetDays,
     int PaymentCycleDays,
-    int? PaymentDueDayOfMonth) : IRequest<Result<Guid>>;
+    int? PaymentDueDayOfMonth,
+    OverCommitmentGuardMode OverCommitmentGuardMode = OverCommitmentGuardMode.Warn) : IRequest<Result<Guid>>;
 
 public sealed class ConfigureProjectCommercialSetupValidator
     : AbstractValidator<ConfigureProjectCommercialSetupCommand>
@@ -104,6 +105,7 @@ public sealed class ConfigureProjectCommercialSetupCommandHandler
             request.PaymentNetDays,
             request.PaymentCycleDays,
             request.PaymentDueDayOfMonth);
+        var guard = new OverCommitmentGuard(request.OverCommitmentGuardMode);
 
         if (existing is null)
         {
@@ -111,13 +113,14 @@ public sealed class ConfigureProjectCommercialSetupCommandHandler
                 request.FinancialsProjectId,
                 request.ContractTemplateId,
                 retention,
-                paymentTerms);
+                paymentTerms,
+                guard);
             _configs.Add(config);
             await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             return Result<Guid>.Success(config.Id);
         }
 
-        existing.UpdateConfiguration(request.ContractTemplateId, retention, paymentTerms);
+        existing.UpdateConfiguration(request.ContractTemplateId, retention, paymentTerms, guard);
         await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         return Result<Guid>.Success(existing.Id);
     }

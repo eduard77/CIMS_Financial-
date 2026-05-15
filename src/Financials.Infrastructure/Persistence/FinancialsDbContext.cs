@@ -25,6 +25,8 @@ public class FinancialsDbContext : DbContext, IFinancialsDbContext
 
     public DbSet<Commitment> Commitments => Set<Commitment>();
 
+    public DbSet<CommitmentInsurance> CommitmentInsurances => Set<CommitmentInsurance>();
+
     internal DbSet<InboxEvent> InboxEvents => Set<InboxEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

@@ -21,6 +21,8 @@ public sealed class ProjectCommercialConfiguration : IAuditable
 
     public PaymentTerms PaymentTerms { get; private set; } = null!;
 
+    public OverCommitmentGuard OverCommitmentGuard { get; private set; } = OverCommitmentGuard.Default;
+
     [SuppressMessage(
         "Performance",
         "CA1819:Properties should not return arrays",
@@ -43,7 +45,8 @@ public sealed class ProjectCommercialConfiguration : IAuditable
         Guid financialsProjectId,
         Guid contractTemplateId,
         RetentionScheme retention,
-        PaymentTerms paymentTerms)
+        PaymentTerms paymentTerms,
+        OverCommitmentGuard? overCommitmentGuard = null)
     {
         if (financialsProjectId == Guid.Empty)
         {
@@ -69,13 +72,15 @@ public sealed class ProjectCommercialConfiguration : IAuditable
             ContractTemplateId = contractTemplateId,
             RetentionScheme = retention,
             PaymentTerms = paymentTerms,
+            OverCommitmentGuard = overCommitmentGuard ?? OverCommitmentGuard.Default,
         };
     }
 
     public void UpdateConfiguration(
         Guid contractTemplateId,
         RetentionScheme retention,
-        PaymentTerms paymentTerms)
+        PaymentTerms paymentTerms,
+        OverCommitmentGuard? overCommitmentGuard = null)
     {
         if (contractTemplateId == Guid.Empty)
         {
@@ -90,5 +95,9 @@ public sealed class ProjectCommercialConfiguration : IAuditable
         ContractTemplateId = contractTemplateId;
         RetentionScheme = retention;
         PaymentTerms = paymentTerms;
+        if (overCommitmentGuard is not null)
+        {
+            OverCommitmentGuard = overCommitmentGuard;
+        }
     }
 }

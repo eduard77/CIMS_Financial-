@@ -4,6 +4,7 @@ using Financials.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Financials.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(FinancialsDbContext))]
-    partial class FinancialsDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260508160026_AddOverCommitmentGuard")]
+    partial class AddOverCommitmentGuard
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -224,84 +227,6 @@ namespace Financials.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("UX_Commitments_Project_Type_Reference");
 
                     b.ToTable("Commitments", "fin");
-                });
-
-            modelBuilder.Entity("Financials.Domain.Commitments.CommitmentInsurance", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("CancellationReason")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<DateTime?>("CancelledAt")
-                        .HasColumnType("datetime2(7)");
-
-                    b.Property<string>("CancelledByUserId")
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<int>("Category")
-                        .HasColumnType("int");
-
-                    b.Property<Guid>("CommitmentId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2(7)");
-
-                    b.Property<string>("CreatedByUserId")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<DateTime>("EffectiveAt")
-                        .HasColumnType("datetime2(7)");
-
-                    b.Property<DateTime>("ExpiresAt")
-                        .HasColumnType("datetime2(7)");
-
-                    b.Property<string>("Issuer")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("PolicyNumber")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("rowversion");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<string>("SubType")
-                        .IsRequired()
-                        .HasMaxLength(80)
-                        .HasColumnType("nvarchar(80)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2(7)");
-
-                    b.Property<string>("UpdatedByUserId")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CommitmentId")
-                        .HasDatabaseName("IX_CommitmentInsurances_Commitment");
-
-                    b.HasIndex("ExpiresAt")
-                        .HasDatabaseName("IX_CommitmentInsurances_ExpiresAt");
-
-                    b.ToTable("CommitmentInsurances", "fin");
                 });
 
             modelBuilder.Entity("Financials.Domain.Commitments.CommitmentLine", b =>
@@ -611,43 +536,6 @@ namespace Financials.Infrastructure.Persistence.Migrations
                     b.Navigation("PaymentTermsOverride");
 
                     b.Navigation("RetentionOverride");
-                });
-
-            modelBuilder.Entity("Financials.Domain.Commitments.CommitmentInsurance", b =>
-                {
-                    b.HasOne("Financials.Domain.Commitments.Commitment", null)
-                        .WithMany()
-                        .HasForeignKey("CommitmentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.OwnsOne("Financials.Domain.Common.Money", "Value", b1 =>
-                        {
-                            b1.Property<Guid>("CommitmentInsuranceId")
-                                .HasColumnType("uniqueidentifier");
-
-                            b1.Property<decimal>("Amount")
-                                .HasPrecision(19, 4)
-                                .HasColumnType("decimal(19,4)")
-                                .HasColumnName("ValueAmount");
-
-                            b1.Property<string>("Currency")
-                                .IsRequired()
-                                .HasMaxLength(3)
-                                .HasColumnType("nchar(3)")
-                                .HasColumnName("ValueCurrency")
-                                .IsFixedLength();
-
-                            b1.HasKey("CommitmentInsuranceId");
-
-                            b1.ToTable("CommitmentInsurances", "fin");
-
-                            b1.WithOwner()
-                                .HasForeignKey("CommitmentInsuranceId");
-                        });
-
-                    b.Navigation("Value")
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("Financials.Domain.Commitments.CommitmentLine", b =>

@@ -1,5 +1,6 @@
 using Financials.Application.Cims;
 using Financials.Application.Common;
+using Financials.Domain.Projects;
 using MediatR;
 
 namespace Financials.Application.Projects;
@@ -24,7 +25,8 @@ public sealed record ProjectCommercialSetupDto(
     decimal RetentionReleaseAtDLPEndPercentage,
     int PaymentNetDays,
     int PaymentCycleDays,
-    int? PaymentDueDayOfMonth);
+    int? PaymentDueDayOfMonth,
+    OverCommitmentGuardMode OverCommitmentGuardMode);
 
 public sealed class GetProjectCommercialSetupQueryHandler
     : IRequestHandler<GetProjectCommercialSetupQuery, Result<ProjectCommercialSetupDto?>>
@@ -80,7 +82,8 @@ public sealed class GetProjectCommercialSetupQueryHandler
             RetentionReleaseAtDLPEndPercentage: config.RetentionScheme.ReleaseAtDLPEndPercentage,
             PaymentNetDays: config.PaymentTerms.NetDays,
             PaymentCycleDays: config.PaymentTerms.PaymentCycleDays,
-            PaymentDueDayOfMonth: config.PaymentTerms.DueDayOfMonth);
+            PaymentDueDayOfMonth: config.PaymentTerms.DueDayOfMonth,
+            OverCommitmentGuardMode: config.OverCommitmentGuard.Mode);
 
         return Result<ProjectCommercialSetupDto?>.Success(dto);
     }

@@ -91,6 +91,65 @@
                     </TemplateColumn>
                 </Columns>
             </MudDataGrid>
+
+            @if (_reconciliation is not null)
+            {
+                <MudPaper Class="pa-4 mt-4" Elevation="1">
+                    <MudText Typo="Typo.h6">Reconciliation (F2 #4)</MudText>
+                    <MudText Typo="Typo.body2" Class="mt-2">
+                        Budget total: <b>@_reconciliation.BudgetTotal.ToString("N2", _uk) @_reconciliation.Currency</b> &middot;
+                        Committed: <b>@_reconciliation.CommittedTotal.ToString("N2", _uk)</b> &middot;
+                        Uncommitted: <b>@_reconciliation.Uncommitted.ToString("N2", _uk)</b>
+                    </MudText>
+                    @if (_reconciliation.ByCostCode.Count > 0)
+                    {
+                        <MudSimpleTable Dense="true" Striped="true" Class="mt-3">
+                            <thead>
+                                <tr><th>Cost code</th><th class="text-right">Budget</th><th class="text-right">Committed</th><th class="text-right">Uncommitted</th></tr>
+                            </thead>
+                            <tbody>
+                            @foreach (var row in _reconciliation.ByCostCode)
+                            {
+                                <tr style="@(row.IsOverCommitted ? "background-color: rgba(244,67,54,0.08);" : "")">
+                                    <td>@row.CimsCostCodeId.ToString()[..8]</td>
+                                    <td class="text-right">@row.Budget.ToString("N2", _uk)</td>
+                                    <td class="text-right">@row.Committed.ToString("N2", _uk)</td>
+                                    <td class="text-right">@row.Uncommitted.ToString("N2", _uk)</td>
+                                </tr>
+                            }
+                            </tbody>
+                        </MudSimpleTable>
+                    }
+                </MudPaper>
+            }
+
+            @if (_insuranceExpiries is { Count: > 0 })
+            {
+                <MudPaper Class="pa-4 mt-4" Elevation="1">
+                    <MudText Typo="Typo.h6">Insurance / bond / warranty expiries (F2 #3)</MudText>
+                    <MudSimpleTable Dense="true" Striped="true" Class="mt-3">
+                        <thead>
+                            <tr><th>Alert</th><th>Days</th><th>Category</th><th>SubType</th><th>Issuer</th><th>Expires</th></tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var exp in _insuranceExpiries)
+                        {
+                            var color = exp.AlertLevel == "Critical" ? "rgba(244,67,54,0.15)"
+                                : exp.AlertLevel == "Warning" ? "rgba(255,152,0,0.12)"
+                                : "rgba(33,150,243,0.06)";
+                            <tr style="@($"background-color: {color};")">
+                                <td><b>@exp.AlertLevel</b></td>
+                                <td>@exp.DaysUntilExpiry</td>
+                                <td>@exp.Category</td>
+                                <td>@exp.SubType</td>
+                                <td>@exp.Issuer</td>
+                                <td>@exp.ExpiresAt.ToString("dd/MM/yyyy", _uk)</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </MudSimpleTable>
+                </MudPaper>
+            }
         }
     }
 </MudContainer>
@@ -107,6 +166,8 @@
 
     private IReadOnlyList<CommitmentDto>? _commitments;
     private IReadOnlyList<CimsOrganisationSummary>? _organisations;
+    private CommitmentReconciliationDto? _reconciliation;
+    private IReadOnlyList<InsuranceExpiryDto>? _insuranceExpiries;
 
     private RaiseForm _form = new();
     private string? _raiseError;
@@ -131,6 +192,12 @@
         {
             _loadError = result.Error;
         }
+
+        var reconciliationResult = await Mediator.Send(new GetCommitmentReconciliationQuery(FinancialsProjectId));
+        _reconciliation = reconciliationResult.IsSuccess ? reconciliationResult.Value : null;
+
+        var expiriesResult = await Mediator.Send(new GetInsuranceExpiriesForProjectQuery(FinancialsProjectId));
+        _insuranceExpiries = expiriesResult.IsSuccess ? expiriesResult.Value : null;
 
         if (_organisations is null)
         {
