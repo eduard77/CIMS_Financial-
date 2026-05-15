@@ -44,6 +44,7 @@ public sealed class Commitment : IAuditable
         Money.Zero(Currency),
         (acc, line) => acc.Add(line.Value));
 
+    // EF Core requires a parameterless constructor for materialisation; not for application use.
     private Commitment() { }
 
     public static Commitment Create(

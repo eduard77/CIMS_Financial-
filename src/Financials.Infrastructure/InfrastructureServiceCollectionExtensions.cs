@@ -56,7 +56,12 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddOptions<CimsWebhookOptions>()
             .Bind(configuration.GetSection(CimsWebhookOptions.SectionName))
             .Validate(o => !string.IsNullOrWhiteSpace(o.Secret),
-                "Cims:Webhook:Secret is required (ADR-0007).");
+                "Cims:Webhook:Secret is required (ADR-0007). "
+                + "Configure via user-secrets in Development: "
+                + "`dotnet user-secrets set \"Cims:Webhook:Secret\" \"<dev-secret>\" "
+                + "--project src/Financials.Web`. "
+                + "In other environments configure via your deployment secret store.")
+            .ValidateOnStart();
         services.AddScoped<IInboxEventDispatcher, InboxEventDispatcher>();
 
         // Pattern B write-side outbox (ADR-0002). The dispatcher hosted service
@@ -83,7 +88,12 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddOptions<CimsClientOptions>()
             .Bind(configuration.GetSection(CimsClientOptions.SectionName))
             .Validate(o => o.BaseAddress is not null,
-                "Cims:BaseAddress is required (ADR-0002).");
+                "Cims:BaseAddress is required (ADR-0002).")
+            .Validate(
+                CimsRetryBudget.IsSafe,
+                $"Cumulative Polly retry backoff (see CimsRetryBudget) exceeds Cims:TotalTimeout. "
+                + $"Reduce Cims:RetryCount or increase Cims:TotalTimeout. "
+                + $"(m-5 finding in docs/code-review-findings.md.)");
 
         services.AddMemoryCache();
         services.AddHttpContextAccessor();

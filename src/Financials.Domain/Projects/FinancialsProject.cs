@@ -32,6 +32,7 @@ public sealed class FinancialsProject : IAuditable
 
     public string UpdatedByUserId { get; private set; } = string.Empty;
 
+    // EF Core requires a parameterless constructor for materialisation; not for application use.
     private FinancialsProject()
     {
     }

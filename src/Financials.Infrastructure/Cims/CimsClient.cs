@@ -18,28 +18,8 @@ namespace Financials.Infrastructure.Cims;
 /// </summary>
 internal sealed partial class CimsClient : ICimsClient
 {
-    private const string ListProjectsPath = "api/projects";
-    private const string ListContractTemplatesPath = "api/contract-templates";
-    private const string ListOrganisationsPath = "api/organisations";
-    private const string PingPath = "health";
-
-    private static readonly CompositeFormat GetProjectPathFormat
-        = CompositeFormat.Parse("api/projects/{0}");
-
-    private static readonly CompositeFormat GetProjectTaxRegimePathFormat
-        = CompositeFormat.Parse("api/projects/{0}/tax-regime");
-
-    private static readonly CompositeFormat GetProjectCostCodesPathFormat
-        = CompositeFormat.Parse("api/projects/{0}/cost-codes");
-
-    private static readonly CompositeFormat GetProjectRoleAssignmentsPathFormat
-        = CompositeFormat.Parse("api/projects/{0}/role-assignments");
-
-    private static readonly CompositeFormat GetOrganisationPathFormat
-        = CompositeFormat.Parse("api/organisations/{0}");
-
-    private static readonly CompositeFormat ListOrganisationsByTypePathFormat
-        = CompositeFormat.Parse("api/organisations?type={0}");
+    // URL templates: see CimsRoutes.cs. Centralising the strings makes
+    // adding or renaming an endpoint a one-file change.
 
     private readonly HttpClient _http;
     private readonly IMemoryCache _cache;
@@ -65,7 +45,7 @@ internal sealed partial class CimsClient : ICimsClient
     {
         try
         {
-            using var response = await _http.GetAsync(new Uri(PingPath, UriKind.Relative), cancellationToken)
+            using var response = await _http.GetAsync(new Uri(CimsRoutes.Ping, UriKind.Relative), cancellationToken)
                 .ConfigureAwait(false);
             return response.IsSuccessStatusCode;
         }
@@ -110,7 +90,7 @@ internal sealed partial class CimsClient : ICimsClient
             {
                 entry.AbsoluteExpirationRelativeToNow = _cacheTtl;
                 return FetchListAsync<ContractTemplateSummary>(
-                    new Uri(ListContractTemplatesPath, UriKind.Relative),
+                    new Uri(CimsRoutes.ListContractTemplates, UriKind.Relative),
                     cancellationToken);
             })!;
 
@@ -125,7 +105,7 @@ internal sealed partial class CimsClient : ICimsClient
                 entry.AbsoluteExpirationRelativeToNow = _cacheTtl;
                 var path = string.Format(
                     CultureInfo.InvariantCulture,
-                    GetProjectTaxRegimePathFormat,
+                    CimsRoutes.GetProjectTaxRegime,
                     cimsProjectId);
                 return FetchOptionalAsync<ProjectTaxRegime>(
                     new Uri(path, UriKind.Relative),
@@ -143,7 +123,7 @@ internal sealed partial class CimsClient : ICimsClient
                 entry.AbsoluteExpirationRelativeToNow = _cacheTtl;
                 var path = string.Format(
                     CultureInfo.InvariantCulture,
-                    GetProjectCostCodesPathFormat,
+                    CimsRoutes.GetProjectCostCodes,
                     cimsProjectId);
                 return FetchListAsync<CostCodeNode>(
                     new Uri(path, UriKind.Relative),
@@ -161,7 +141,7 @@ internal sealed partial class CimsClient : ICimsClient
                 entry.AbsoluteExpirationRelativeToNow = _cacheTtl;
                 var path = string.Format(
                     CultureInfo.InvariantCulture,
-                    GetProjectRoleAssignmentsPathFormat,
+                    CimsRoutes.GetProjectRoleAssignments,
                     cimsProjectId);
                 return FetchListAsync<ProjectRoleAssignment>(
                     new Uri(path, UriKind.Relative),
@@ -179,7 +159,7 @@ internal sealed partial class CimsClient : ICimsClient
                 entry.AbsoluteExpirationRelativeToNow = _cacheTtl;
                 var path = string.Format(
                     CultureInfo.InvariantCulture,
-                    GetOrganisationPathFormat,
+                    CimsRoutes.GetOrganisation,
                     cimsOrganisationId);
                 return FetchOptionalAsync<CimsOrganisationSummary>(
                     new Uri(path, UriKind.Relative),
@@ -197,10 +177,10 @@ internal sealed partial class CimsClient : ICimsClient
             {
                 entry.AbsoluteExpirationRelativeToNow = _cacheTtl;
                 var uri = type is null
-                    ? new Uri(ListOrganisationsPath, UriKind.Relative)
+                    ? new Uri(CimsRoutes.ListOrganisations, UriKind.Relative)
                     : new Uri(string.Format(
                         CultureInfo.InvariantCulture,
-                        ListOrganisationsByTypePathFormat,
+                        CimsRoutes.ListOrganisationsByType,
                         type), UriKind.Relative);
                 return FetchListAsync<CimsOrganisationSummary>(uri, cancellationToken);
             })!;
@@ -208,13 +188,13 @@ internal sealed partial class CimsClient : ICimsClient
 
     private async Task<IReadOnlyList<CimsProjectSummary>> FetchProjectsAsync(CancellationToken cancellationToken)
         => await FetchListAsync<CimsProjectSummary>(
-            new Uri(ListProjectsPath, UriKind.Relative),
+            new Uri(CimsRoutes.ListProjects, UriKind.Relative),
             cancellationToken)
             .ConfigureAwait(false);
 
     private async Task<CimsProjectSummary?> FetchProjectAsync(Guid cimsProjectId, CancellationToken cancellationToken)
     {
-        var path = string.Format(CultureInfo.InvariantCulture, GetProjectPathFormat, cimsProjectId);
+        var path = string.Format(CultureInfo.InvariantCulture, CimsRoutes.GetProject, cimsProjectId);
         return await FetchOptionalAsync<CimsProjectSummary>(
             new Uri(path, UriKind.Relative),
             cancellationToken)

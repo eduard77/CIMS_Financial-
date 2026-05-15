@@ -24,6 +24,12 @@ public static class BoqXmlParser
     private const NumberStyles StrictDecimalStyle =
         NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint;
 
+    // M-6: storage is decimal(19,4); the parser rejects values with more than
+    // 4 fractional digits rather than silently truncating at insert. A value
+    // like 12.34567 would round to 12.3457 in the DB without any warning if we
+    // accepted it — a quiet £-precision loss across thousands of lines.
+    private const int MaxFractionalDigits = 4;
+
     private static bool TryParseStrictDecimal(string? raw, out decimal value)
     {
         value = 0m;
@@ -33,7 +39,24 @@ public static class BoqXmlParser
         }
 
         var trimmed = raw.Trim();
-        return decimal.TryParse(trimmed, StrictDecimalStyle, CultureInfo.InvariantCulture, out value);
+        if (!decimal.TryParse(trimmed, StrictDecimalStyle, CultureInfo.InvariantCulture, out value))
+        {
+            return false;
+        }
+
+        return FractionalDigits(trimmed) <= MaxFractionalDigits;
+    }
+
+    /// <summary>
+    /// Count digits after the decimal point on the raw input text. We work
+    /// from the string rather than the parsed decimal because <c>decimal</c>
+    /// normalises trailing zeros — "1.0000" and "1" parse to the same value
+    /// but the input precision differs.
+    /// </summary>
+    private static int FractionalDigits(string trimmed)
+    {
+        var dot = trimmed.IndexOf('.', StringComparison.Ordinal);
+        return dot < 0 ? 0 : trimmed.Length - dot - 1;
     }
 
     public static BoqParseResult Parse(string xmlContent)

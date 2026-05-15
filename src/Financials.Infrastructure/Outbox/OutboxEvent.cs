@@ -24,6 +24,7 @@ internal sealed class OutboxEvent
 
     public int AttemptCount { get; private set; }
 
+    // EF Core requires a parameterless constructor for materialisation; not for application use.
     private OutboxEvent()
     {
     }

@@ -21,6 +21,7 @@ internal sealed class InboxEvent
 
     public string? FailureReason { get; private set; }
 
+    // EF Core requires a parameterless constructor for materialisation; not for application use.
     private InboxEvent()
     {
     }

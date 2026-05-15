@@ -12,6 +12,12 @@
       collection is sufficient for short-lived HttpClients, MemoryCaches, and
       DelegatingHandlers; adding `using` declarations everywhere obscures the
       arrange/act/assert flow without buying anything in a test process.
+
+      CA1030 (make method an event) fires on test methods named like
+      "Raise_add_lines_activate_round_trips" because the verb "Raise" is one
+      of CA1030's event triggers. Test methods are not events; CA1030 has no
+      meaningful judgement to make here. Confirmed re-firing on
+      CommitmentSliceTests after the n-2 review.
     -->
     <NoWarn>$(NoWarn);CA1707;CA2000;CA1861;CA1034;CA1507;CA1030</NoWarn>
   </PropertyGroup>

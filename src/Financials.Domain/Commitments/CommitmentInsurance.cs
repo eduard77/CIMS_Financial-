@@ -38,6 +38,7 @@ public sealed class CommitmentInsurance : IAuditable
     public DateTime UpdatedAt { get; private set; }
     public string UpdatedByUserId { get; private set; } = string.Empty;
 
+    // EF Core requires a parameterless constructor for materialisation; not for application use.
     private CommitmentInsurance() { }
 
     public static CommitmentInsurance Register(

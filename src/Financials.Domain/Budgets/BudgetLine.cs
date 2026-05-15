@@ -31,6 +31,7 @@ public sealed class BudgetLine
 
     public Guid? ActivityId { get; private set; }
 
+    // EF Core requires a parameterless constructor for materialisation; not for application use.
     private BudgetLine()
     {
     }

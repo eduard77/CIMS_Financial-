@@ -382,6 +382,74 @@ public class BoqXmlParserTests
         }
     }
 
+    // --- M-6: reject inputs with more fractional precision than decimal(19,4) ---
+
+    [Theory]
+    [InlineData("12.34567")]   // 5 fractional digits
+    [InlineData("0.000001")]   // 6 fractional digits
+    [InlineData("1.00000")]    // 5 fractional digits (trailing zeros count — raw text precision)
+    public void Parse_rejects_quantity_with_more_than_four_fractional_digits(string raw)
+    {
+        var lineXml = $"""
+            <Line lineNumber="1">
+              <CimsCostCodeId>22222222-2222-2222-2222-222222222222</CimsCostCodeId>
+              <Description>x</Description>
+              <Quantity>{raw}</Quantity>
+              <UnitOfMeasure>nr</UnitOfMeasure>
+              <UnitRate>1</UnitRate>
+            </Line>
+            """;
+
+        var result = BoqXmlParser.Parse(ValidDocument(linesXml: lineXml));
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(e =>
+            e.Contains("Quantity", StringComparison.Ordinal)
+            && e.Contains("no thousands separator", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("12.3456")]   // exactly 4 — boundary should pass
+    [InlineData("0.0001")]    // exactly 4
+    [InlineData("999.9999")]  // exactly 4
+    [InlineData("1.0")]       // 1 digit — passes
+    [InlineData("1")]         // 0 digits — passes
+    public void Parse_accepts_quantity_with_up_to_four_fractional_digits(string raw)
+    {
+        var lineXml = $"""
+            <Line lineNumber="1">
+              <CimsCostCodeId>22222222-2222-2222-2222-222222222222</CimsCostCodeId>
+              <Description>x</Description>
+              <Quantity>{raw}</Quantity>
+              <UnitOfMeasure>nr</UnitOfMeasure>
+              <UnitRate>1</UnitRate>
+            </Line>
+            """;
+
+        var result = BoqXmlParser.Parse(ValidDocument(linesXml: lineXml));
+
+        result.IsValid.Should().BeTrue($"'{raw}' has 4 or fewer fractional digits and should pass");
+    }
+
+    [Fact]
+    public void Parse_rejects_unit_rate_with_more_than_four_fractional_digits()
+    {
+        var lineXml = """
+            <Line lineNumber="1">
+              <CimsCostCodeId>22222222-2222-2222-2222-222222222222</CimsCostCodeId>
+              <Description>x</Description>
+              <Quantity>1</Quantity>
+              <UnitOfMeasure>nr</UnitOfMeasure>
+              <UnitRate>10.123456</UnitRate>
+            </Line>
+            """;
+
+        var result = BoqXmlParser.Parse(ValidDocument(linesXml: lineXml));
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(e => e.Contains("UnitRate", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void Parse_tolerates_xml_formatting_whitespace_inside_quantity_element()
     {

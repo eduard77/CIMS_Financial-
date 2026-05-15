@@ -1,5 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Financials.Application.Budgets.Notifications;
@@ -112,28 +110,7 @@ internal sealed partial class InboxEventDispatcher : IInboxEventDispatcher
     }
 
     private bool VerifySignature(string rawBody, string? signatureHeader)
-    {
-        if (string.IsNullOrEmpty(signatureHeader))
-        {
-            return false;
-        }
-
-        byte[] provided;
-        try
-        {
-            provided = Convert.FromBase64String(signatureHeader);
-        }
-        catch (FormatException)
-        {
-            return false;
-        }
-
-        var bodyBytes = Encoding.UTF8.GetBytes(rawBody);
-        using var hmac = new HMACSHA256(_secretBytes);
-        var computed = hmac.ComputeHash(bodyBytes);
-
-        return CryptographicOperations.FixedTimeEquals(provided, computed);
-    }
+        => HmacSignatureVerifier.Verify(rawBody, signatureHeader, _secretBytes);
 
     private static bool TryBuildNotification(
         InboxEnvelope envelope,

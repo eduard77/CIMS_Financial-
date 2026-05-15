@@ -28,6 +28,7 @@ public sealed class BudgetRevision
 
     public IReadOnlyCollection<BudgetLine> Lines => _lines.AsReadOnly();
 
+    // EF Core requires a parameterless constructor for materialisation; not for application use.
     private BudgetRevision()
     {
     }

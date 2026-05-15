@@ -36,6 +36,7 @@ public sealed class Budget : IAuditable
 
     public IReadOnlyCollection<BudgetRevision> Revisions => _revisions.AsReadOnly();
 
+    // EF Core requires a parameterless constructor for materialisation; not for application use.
     private Budget()
     {
     }

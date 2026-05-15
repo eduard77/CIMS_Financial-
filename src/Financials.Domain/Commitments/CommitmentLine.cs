@@ -14,6 +14,7 @@ public sealed class CommitmentLine
     public Money UnitRate { get; private set; } = null!;
     public Money Value { get; private set; } = null!;
 
+    // EF Core requires a parameterless constructor for materialisation; not for application use.
     private CommitmentLine() { }
 
     internal static CommitmentLine Create(
