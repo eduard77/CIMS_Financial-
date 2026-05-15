@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Financials.Infrastructure.Persistence;
 
-public class FinancialsDbContext : DbContext, IFinancialsDbContext
+public sealed class FinancialsDbContext : DbContext, IFinancialsDbContext
 {
     public const string DefaultSchema = "fin";
 

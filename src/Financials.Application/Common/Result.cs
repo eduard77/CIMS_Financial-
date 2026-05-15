@@ -60,6 +60,12 @@ public class Result
     {
         ArgumentNullException.ThrowIfNull(errors);
         var list = errors.ToList();
+        if (list.Count == 0)
+        {
+            throw new ArgumentException(
+                "ValidationFailure requires at least one error message; got empty sequence.",
+                nameof(errors));
+        }
         return new Result(false, FailureReason.ValidationFailed, "Validation failed.", list);
     }
 }
@@ -110,6 +116,12 @@ public sealed class Result<T> : Result
     {
         ArgumentNullException.ThrowIfNull(errors);
         var list = errors.ToList();
+        if (list.Count == 0)
+        {
+            throw new ArgumentException(
+                "ValidationFailure requires at least one error message; got empty sequence.",
+                nameof(errors));
+        }
         return new Result<T>(false, FailureReason.ValidationFailed, default, "Validation failed.", list);
     }
 }
