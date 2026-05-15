@@ -27,25 +27,28 @@ public sealed class CommitmentLine
     {
         if (cimsCostCodeId == Guid.Empty)
         {
-            throw new ArgumentException("A CIMS cost code is required.", nameof(cimsCostCodeId));
+            throw DomainException.ValidationFailed("A CIMS cost code is required.");
         }
         if (string.IsNullOrWhiteSpace(description))
         {
-            throw new ArgumentException("Description is required.", nameof(description));
+            throw DomainException.ValidationFailed("Description is required.");
         }
         if (string.IsNullOrWhiteSpace(unitOfMeasure))
         {
-            throw new ArgumentException("Unit of measure is required.", nameof(unitOfMeasure));
+            throw DomainException.ValidationFailed("Unit of measure is required.");
         }
         if (lineNumber <= 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(lineNumber), lineNumber, "Line number must be positive.");
+            throw DomainException.ValidationFailed("Line number must be positive.");
         }
         if (quantity < 0m)
         {
-            throw new ArgumentOutOfRangeException(nameof(quantity), quantity, "Quantity must be non-negative.");
+            throw DomainException.ValidationFailed("Quantity must be non-negative.");
         }
-        ArgumentNullException.ThrowIfNull(unitRate);
+        if (unitRate is null)
+        {
+            throw DomainException.ValidationFailed("Unit rate is required.");
+        }
 
         return new CommitmentLine
         {

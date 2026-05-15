@@ -28,14 +28,18 @@ public class CommitmentTests
     public void Create_rejects_unknown_type()
     {
         var act = () => Commitment.Create(ProjectId, CommitmentType.Unknown, "X-001", CounterpartyId);
-        act.Should().Throw<ArgumentException>().WithParameterName("type");
+        act.Should().Throw<DomainException>()
+            .Where(ex => ex.Reason == FailureReason.ValidationFailed)
+            .WithMessage("*Commitment type*");
     }
 
     [Fact]
     public void Create_rejects_blank_reference()
     {
         var act = () => Commitment.Create(ProjectId, CommitmentType.Subcontract, "", CounterpartyId);
-        act.Should().Throw<ArgumentException>().WithParameterName("reference");
+        act.Should().Throw<DomainException>()
+            .Where(ex => ex.Reason == FailureReason.ValidationFailed)
+            .WithMessage("*Reference*");
     }
 
     [Fact]
@@ -54,7 +58,9 @@ public class CommitmentTests
     {
         var commitment = NewSubcontract();
         var act = () => commitment.AddLine(1, CostCodeA, "Excavation", 1m, "m3", new Money(10m, "USD"));
-        act.Should().Throw<InvalidOperationException>().WithMessage("*USD*GBP*");
+        act.Should().Throw<DomainException>()
+            .Where(ex => ex.Reason == FailureReason.ValidationFailed)
+            .WithMessage("*USD*GBP*");
     }
 
     [Fact]
@@ -65,7 +71,9 @@ public class CommitmentTests
         commitment.Activate("user-1", DateTime.UtcNow);
 
         var act = () => commitment.AddLine(2, CostCodeA, "Late", 1m, "m3", Money.Gbp(20m));
-        act.Should().Throw<InvalidOperationException>().WithMessage("*Active*");
+        act.Should().Throw<DomainException>()
+            .Where(ex => ex.Reason == FailureReason.PreconditionFailed)
+            .WithMessage("*Active*");
     }
 
     [Fact]
@@ -73,7 +81,9 @@ public class CommitmentTests
     {
         var commitment = NewSubcontract();
         var act = () => commitment.Activate("user-1", DateTime.UtcNow);
-        act.Should().Throw<InvalidOperationException>().WithMessage("*no lines*");
+        act.Should().Throw<DomainException>()
+            .Where(ex => ex.Reason == FailureReason.PreconditionFailed)
+            .WithMessage("*no lines*");
     }
 
     [Fact]
@@ -98,7 +108,8 @@ public class CommitmentTests
         commitment.Activate("user-1", DateTime.UtcNow);
 
         var act = () => commitment.Activate("user-1", DateTime.UtcNow);
-        act.Should().Throw<InvalidOperationException>();
+        act.Should().Throw<DomainException>()
+            .Where(ex => ex.Reason == FailureReason.PreconditionFailed);
     }
 
     [Fact]
@@ -108,14 +119,17 @@ public class CommitmentTests
         commitment.AddLine(1, CostCodeA, "Excavation", 1m, "m3", Money.Gbp(10m));
 
         var actBeforeActive = () => commitment.Close("user-1", DateTime.UtcNow);
-        actBeforeActive.Should().Throw<InvalidOperationException>().WithMessage("*Draft*");
+        actBeforeActive.Should().Throw<DomainException>()
+            .Where(ex => ex.Reason == FailureReason.PreconditionFailed)
+            .WithMessage("*Draft*");
 
         commitment.Activate("user-1", DateTime.UtcNow);
         commitment.Close("user-2", DateTime.UtcNow);
         commitment.Status.Should().Be(CommitmentStatus.Closed);
 
         var actAfterClose = () => commitment.Close("user-2", DateTime.UtcNow);
-        actAfterClose.Should().Throw<InvalidOperationException>();
+        actAfterClose.Should().Throw<DomainException>()
+            .Where(ex => ex.Reason == FailureReason.PreconditionFailed);
     }
 
     [Fact]
@@ -127,6 +141,8 @@ public class CommitmentTests
 
         var po = Commitment.Create(ProjectId, CommitmentType.PurchaseOrder, "PO-001", CounterpartyId);
         var act = () => po.OverrideRetention(RetentionScheme.Create(3m, 100m, 0m));
-        act.Should().Throw<InvalidOperationException>().WithMessage("*Subcontract*");
+        act.Should().Throw<DomainException>()
+            .Where(ex => ex.Reason == FailureReason.PreconditionFailed)
+            .WithMessage("*Subcontract*");
     }
 }

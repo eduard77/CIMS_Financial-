@@ -57,7 +57,7 @@ public sealed class RegisterCommitmentInsuranceCommandHandler
         var commitment = await _commitments.FindByIdAsync(request.CommitmentId, cancellationToken).ConfigureAwait(false);
         if (commitment is null)
         {
-            return Result<Guid>.Failure($"Commitment {request.CommitmentId} not found.");
+            return Result<Guid>.NotFound($"Commitment {request.CommitmentId} not found.");
         }
 
         try
@@ -75,9 +75,9 @@ public sealed class RegisterCommitmentInsuranceCommandHandler
             await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             return Result<Guid>.Success(insurance.Id);
         }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        catch (DomainException ex)
         {
-            return Result<Guid>.Failure(ex.Message);
+            return Result<Guid>.Failure(ex.Reason, ex.Message);
         }
     }
 }

@@ -55,23 +55,23 @@ public sealed class Commitment : IAuditable
     {
         if (financialsProjectId == Guid.Empty)
         {
-            throw new ArgumentException("FinancialsProjectId is required.", nameof(financialsProjectId));
+            throw DomainException.ValidationFailed("FinancialsProjectId is required.");
         }
         if (type == CommitmentType.Unknown)
         {
-            throw new ArgumentException("Commitment type is required.", nameof(type));
+            throw DomainException.ValidationFailed("Commitment type is required.");
         }
         if (string.IsNullOrWhiteSpace(reference))
         {
-            throw new ArgumentException("Reference is required.", nameof(reference));
+            throw DomainException.ValidationFailed("Reference is required.");
         }
         if (counterpartyCimsOrganisationId == Guid.Empty)
         {
-            throw new ArgumentException("Counterparty is required.", nameof(counterpartyCimsOrganisationId));
+            throw DomainException.ValidationFailed("Counterparty is required.");
         }
         if (string.IsNullOrWhiteSpace(currency) || currency.Length != 3)
         {
-            throw new ArgumentException("Currency must be a 3-letter ISO 4217 code.", nameof(currency));
+            throw DomainException.ValidationFailed("Currency must be a 3-letter ISO 4217 code.");
         }
 
         return new Commitment
@@ -96,20 +96,23 @@ public sealed class Commitment : IAuditable
     {
         if (Status != CommitmentStatus.Draft)
         {
-            throw new InvalidOperationException(
+            throw DomainException.PreconditionFailed(
                 $"Cannot add lines to commitment {Reference}: it is {Status}.");
         }
 
-        ArgumentNullException.ThrowIfNull(unitRate);
+        if (unitRate is null)
+        {
+            throw DomainException.ValidationFailed("Unit rate is required.");
+        }
         if (!string.Equals(unitRate.Currency, Currency, StringComparison.Ordinal))
         {
-            throw new InvalidOperationException(
+            throw DomainException.ValidationFailed(
                 $"Line currency {unitRate.Currency} does not match commitment currency {Currency}.");
         }
 
         if (_lines.Any(l => l.LineNumber == lineNumber))
         {
-            throw new InvalidOperationException(
+            throw DomainException.Conflict(
                 $"Line number {lineNumber} already exists in commitment {Reference}.");
         }
 
@@ -122,15 +125,18 @@ public sealed class Commitment : IAuditable
     {
         if (Status != CommitmentStatus.Draft)
         {
-            throw new InvalidOperationException(
+            throw DomainException.PreconditionFailed(
                 $"Retention override can only be set on a Draft commitment; {Reference} is {Status}.");
         }
         if (Type != CommitmentType.Subcontract)
         {
-            throw new InvalidOperationException(
+            throw DomainException.PreconditionFailed(
                 $"Retention override only applies to Subcontract commitments; {Reference} is a {Type}.");
         }
-        ArgumentNullException.ThrowIfNull(retention);
+        if (retention is null)
+        {
+            throw DomainException.ValidationFailed("Retention scheme is required.");
+        }
         RetentionOverride = retention;
     }
 
@@ -138,10 +144,13 @@ public sealed class Commitment : IAuditable
     {
         if (Status != CommitmentStatus.Draft)
         {
-            throw new InvalidOperationException(
+            throw DomainException.PreconditionFailed(
                 $"Payment terms override can only be set on a Draft commitment; {Reference} is {Status}.");
         }
-        ArgumentNullException.ThrowIfNull(terms);
+        if (terms is null)
+        {
+            throw DomainException.ValidationFailed("Payment terms are required.");
+        }
         PaymentTermsOverride = terms;
     }
 
@@ -149,16 +158,16 @@ public sealed class Commitment : IAuditable
     {
         if (Status != CommitmentStatus.Draft)
         {
-            throw new InvalidOperationException(
+            throw DomainException.PreconditionFailed(
                 $"Commitment {Reference} cannot be activated from {Status}.");
         }
         if (string.IsNullOrWhiteSpace(activatedByUserId))
         {
-            throw new ArgumentException("An activating user id is required.", nameof(activatedByUserId));
+            throw DomainException.ValidationFailed("An activating user id is required.");
         }
         if (_lines.Count == 0)
         {
-            throw new InvalidOperationException(
+            throw DomainException.PreconditionFailed(
                 $"Cannot activate commitment {Reference}: it has no lines.");
         }
 
@@ -171,12 +180,12 @@ public sealed class Commitment : IAuditable
     {
         if (Status != CommitmentStatus.Active)
         {
-            throw new InvalidOperationException(
+            throw DomainException.PreconditionFailed(
                 $"Commitment {Reference} cannot be closed from {Status}.");
         }
         if (string.IsNullOrWhiteSpace(closedByUserId))
         {
-            throw new ArgumentException("A closing user id is required.", nameof(closedByUserId));
+            throw DomainException.ValidationFailed("A closing user id is required.");
         }
 
         Status = CommitmentStatus.Closed;

@@ -60,13 +60,13 @@ public sealed class ConfirmCimsProjectCommandHandler
         }
         catch (HttpRequestException)
         {
-            return Result<Guid>.Failure(
+            return Result<Guid>.DependencyUnavailable(
                 "CIMS is currently unavailable. Try again in a moment.");
         }
 
         if (cimsProject is null)
         {
-            return Result<Guid>.Failure(
+            return Result<Guid>.NotFound(
                 $"Project {request.CimsProjectId} was not found in CIMS.");
         }
 
@@ -75,7 +75,7 @@ public sealed class ConfirmCimsProjectCommandHandler
             .ConfigureAwait(false);
         if (existing is not null)
         {
-            return Result<Guid>.Failure(
+            return Result<Guid>.Conflict(
                 $"Project '{cimsProject.Name}' is already confirmed for Financials.");
         }
 

@@ -66,7 +66,7 @@ public sealed class GetProjectCommercialSetupQueryHandler
         }
         catch (HttpRequestException)
         {
-            return Result<ProjectCommercialSetupDto?>.Failure(
+            return Result<ProjectCommercialSetupDto?>.DependencyUnavailable(
                 "CIMS is currently unavailable. Some setup details cannot be displayed.");
         }
 

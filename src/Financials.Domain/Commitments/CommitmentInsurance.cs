@@ -52,22 +52,23 @@ public sealed class CommitmentInsurance : IAuditable
     {
         if (commitmentId == Guid.Empty)
         {
-            throw new ArgumentException("CommitmentId is required.", nameof(commitmentId));
+            throw DomainException.ValidationFailed("CommitmentId is required.");
         }
         if (string.IsNullOrWhiteSpace(subType))
         {
-            throw new ArgumentException("SubType is required.", nameof(subType));
+            throw DomainException.ValidationFailed("SubType is required.");
         }
         if (string.IsNullOrWhiteSpace(issuer))
         {
-            throw new ArgumentException("Issuer is required.", nameof(issuer));
+            throw DomainException.ValidationFailed("Issuer is required.");
         }
-        ArgumentNullException.ThrowIfNull(value);
+        if (value is null)
+        {
+            throw DomainException.ValidationFailed("Insurance value is required.");
+        }
         if (expiresAt <= effectiveAt)
         {
-            throw new ArgumentException(
-                "ExpiresAt must be after EffectiveAt.",
-                nameof(expiresAt));
+            throw DomainException.ValidationFailed("ExpiresAt must be after EffectiveAt.");
         }
 
         return new CommitmentInsurance
@@ -89,11 +90,11 @@ public sealed class CommitmentInsurance : IAuditable
     {
         if (Status == InsuranceStatus.Cancelled)
         {
-            throw new InvalidOperationException("Insurance is already cancelled.");
+            throw DomainException.PreconditionFailed("Insurance is already cancelled.");
         }
         if (string.IsNullOrWhiteSpace(cancelledByUserId))
         {
-            throw new ArgumentException("Cancelling user id is required.", nameof(cancelledByUserId));
+            throw DomainException.ValidationFailed("Cancelling user id is required.");
         }
 
         Status = InsuranceStatus.Cancelled;

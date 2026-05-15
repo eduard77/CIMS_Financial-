@@ -1,3 +1,4 @@
+using Financials.Domain.Common;
 using Financials.Domain.Projects;
 
 namespace Financials.Domain.Tests.Projects;
@@ -33,7 +34,9 @@ public class FinancialsProjectTests
     {
         var act = () => FinancialsProject.Confirm(Guid.Empty, DateTime.UtcNow);
 
-        act.Should().Throw<ArgumentException>().WithParameterName("cimsProjectId");
+        act.Should().Throw<DomainException>()
+            .Where(ex => ex.Reason == FailureReason.ValidationFailed)
+            .WithMessage("*CIMS project id is required*");
     }
 
     [Fact]

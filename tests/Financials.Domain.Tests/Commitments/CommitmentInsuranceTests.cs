@@ -69,7 +69,9 @@ public class CommitmentInsuranceTests
             Guid.Empty, InsuranceCategory.Bond, InsuranceSubTypes.PerformanceBond,
             "Acme", OneMillion, Effective, Expires);
 
-        act.Should().Throw<ArgumentException>().WithParameterName("commitmentId");
+        act.Should().Throw<DomainException>()
+            .Where(ex => ex.Reason == FailureReason.ValidationFailed)
+            .WithMessage("*CommitmentId*");
     }
 
     [Theory]
@@ -81,7 +83,9 @@ public class CommitmentInsuranceTests
             CommitmentId, InsuranceCategory.Bond, subType,
             "Acme", OneMillion, Effective, Expires);
 
-        act.Should().Throw<ArgumentException>().WithParameterName("subType");
+        act.Should().Throw<DomainException>()
+            .Where(ex => ex.Reason == FailureReason.ValidationFailed)
+            .WithMessage("*SubType*");
     }
 
     [Theory]
@@ -93,7 +97,9 @@ public class CommitmentInsuranceTests
             CommitmentId, InsuranceCategory.Bond, InsuranceSubTypes.PerformanceBond,
             issuer, OneMillion, Effective, Expires);
 
-        act.Should().Throw<ArgumentException>().WithParameterName("issuer");
+        act.Should().Throw<DomainException>()
+            .Where(ex => ex.Reason == FailureReason.ValidationFailed)
+            .WithMessage("*Issuer*");
     }
 
     [Fact]
@@ -103,7 +109,9 @@ public class CommitmentInsuranceTests
             CommitmentId, InsuranceCategory.Bond, InsuranceSubTypes.PerformanceBond,
             "Acme", null!, Effective, Expires);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("value");
+        act.Should().Throw<DomainException>()
+            .Where(ex => ex.Reason == FailureReason.ValidationFailed)
+            .WithMessage("*Insurance value*");
     }
 
     [Fact]
@@ -113,8 +121,8 @@ public class CommitmentInsuranceTests
             CommitmentId, InsuranceCategory.Bond, InsuranceSubTypes.PerformanceBond,
             "Acme", OneMillion, Effective, Effective);
 
-        act.Should().Throw<ArgumentException>()
-            .WithParameterName("expiresAt")
+        act.Should().Throw<DomainException>()
+            .Where(ex => ex.Reason == FailureReason.ValidationFailed)
             .WithMessage("*after*");
     }
 
@@ -125,7 +133,9 @@ public class CommitmentInsuranceTests
             CommitmentId, InsuranceCategory.Bond, InsuranceSubTypes.PerformanceBond,
             "Acme", OneMillion, Expires, Effective);
 
-        act.Should().Throw<ArgumentException>().WithParameterName("expiresAt");
+        act.Should().Throw<DomainException>()
+            .Where(ex => ex.Reason == FailureReason.ValidationFailed)
+            .WithMessage("*ExpiresAt*after*EffectiveAt*");
     }
 
     [Fact]
@@ -172,7 +182,8 @@ public class CommitmentInsuranceTests
 
         var act = () => insurance.Cancel("user-9", DateTime.UtcNow);
 
-        act.Should().Throw<InvalidOperationException>()
+        act.Should().Throw<DomainException>()
+            .Where(ex => ex.Reason == FailureReason.PreconditionFailed)
             .WithMessage("*already cancelled*");
     }
 
@@ -185,7 +196,9 @@ public class CommitmentInsuranceTests
 
         var act = () => insurance.Cancel(user, DateTime.UtcNow);
 
-        act.Should().Throw<ArgumentException>().WithParameterName("cancelledByUserId");
+        act.Should().Throw<DomainException>()
+            .Where(ex => ex.Reason == FailureReason.ValidationFailed)
+            .WithMessage("*Cancelling user id*");
     }
 
     [Fact]

@@ -1,3 +1,4 @@
+using Financials.Domain.Common;
 using Financials.Domain.Projects;
 
 namespace Financials.Domain.Tests.Projects;
@@ -38,7 +39,9 @@ public class ProjectCommercialConfigurationTests
             DefaultRetention(),
             DefaultPaymentTerms());
 
-        act.Should().Throw<ArgumentException>().WithParameterName("financialsProjectId");
+        act.Should().Throw<DomainException>()
+            .Where(ex => ex.Reason == FailureReason.ValidationFailed)
+            .WithMessage("*FinancialsProjectId*");
     }
 
     [Fact]
@@ -50,7 +53,9 @@ public class ProjectCommercialConfigurationTests
             DefaultRetention(),
             DefaultPaymentTerms());
 
-        act.Should().Throw<ArgumentException>().WithParameterName("contractTemplateId");
+        act.Should().Throw<DomainException>()
+            .Where(ex => ex.Reason == FailureReason.ValidationFailed)
+            .WithMessage("*contract template*");
     }
 
     [Fact]

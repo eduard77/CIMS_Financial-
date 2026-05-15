@@ -57,7 +57,7 @@ public sealed class ListConfirmedProjectsQueryHandler
         }
         catch (HttpRequestException)
         {
-            return Result<IReadOnlyList<ConfirmedProjectDto>>.Failure(
+            return Result<IReadOnlyList<ConfirmedProjectDto>>.DependencyUnavailable(
                 "CIMS is currently unavailable. Some project details cannot be displayed.");
         }
     }

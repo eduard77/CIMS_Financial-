@@ -74,7 +74,7 @@ public sealed class GetCommitmentsForProjectQueryHandler
         }
         catch (HttpRequestException)
         {
-            return Result<IReadOnlyList<CommitmentDto>>.Failure(
+            return Result<IReadOnlyList<CommitmentDto>>.DependencyUnavailable(
                 "CIMS is currently unavailable. Some counterparty details cannot be displayed.");
         }
 

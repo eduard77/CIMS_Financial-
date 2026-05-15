@@ -4,6 +4,7 @@ using Financials.Application.Persistence;
 using Financials.Application.Projects;
 using Financials.Domain.Budgets;
 using Financials.Domain.Commitments;
+using Financials.Domain.Common;
 using Financials.Domain.Projects;
 using FluentValidation;
 using MediatR;
@@ -58,14 +59,14 @@ public sealed class ActivateCommitmentCommandHandler
 
         if (string.IsNullOrEmpty(_currentUser.UserId))
         {
-            return Result<ActivateCommitmentResult>.Failure(
+            return Result<ActivateCommitmentResult>.Unauthorized(
                 "An authenticated user is required to activate a commitment.");
         }
 
         var commitment = await _commitments.FindByIdAsync(request.CommitmentId, cancellationToken).ConfigureAwait(false);
         if (commitment is null)
         {
-            return Result<ActivateCommitmentResult>.Failure($"Commitment {request.CommitmentId} not found.");
+            return Result<ActivateCommitmentResult>.NotFound($"Commitment {request.CommitmentId} not found.");
         }
 
         var guardMode = OverCommitmentGuardMode.Warn;
@@ -80,7 +81,7 @@ public sealed class ActivateCommitmentCommandHandler
 
         if (breaches.Count > 0 && guardMode == OverCommitmentGuardMode.HardBlock)
         {
-            return Result<ActivateCommitmentResult>.Failure(
+            return Result<ActivateCommitmentResult>.PreconditionFailed(
                 "Activation blocked by over-commitment guard (HardBlock mode). Breached cost codes: "
                 + string.Join("; ", breaches.Select(b =>
                     $"{b.CimsCostCodeId} (budget {b.Budget:N2}, committed {b.AlreadyCommitted:N2}, this {b.ThisCommitment:N2}, over by {b.OverBy:N2})")));
@@ -91,9 +92,9 @@ public sealed class ActivateCommitmentCommandHandler
             commitment.Activate(_currentUser.UserId, _clock.UtcNow);
             await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        catch (DomainException ex)
         {
-            return Result<ActivateCommitmentResult>.Failure(ex.Message);
+            return Result<ActivateCommitmentResult>.Failure(ex.Reason, ex.Message);
         }
 
         var warnings = breaches

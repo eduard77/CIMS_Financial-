@@ -1,5 +1,6 @@
 using Financials.Application.Common;
 using Financials.Application.Persistence;
+using Financials.Domain.Common;
 using FluentValidation;
 using MediatR;
 
@@ -41,13 +42,13 @@ public sealed class CancelCommitmentInsuranceCommandHandler : IRequestHandler<Ca
 
         if (string.IsNullOrEmpty(_currentUser.UserId))
         {
-            return Result.Failure("An authenticated user is required to cancel an insurance.");
+            return Result.Unauthorized("An authenticated user is required to cancel an insurance.");
         }
 
         var insurance = await _insurances.FindByIdAsync(request.InsuranceId, cancellationToken).ConfigureAwait(false);
         if (insurance is null)
         {
-            return Result.Failure($"Insurance {request.InsuranceId} not found.");
+            return Result.NotFound($"Insurance {request.InsuranceId} not found.");
         }
 
         try
@@ -56,9 +57,9 @@ public sealed class CancelCommitmentInsuranceCommandHandler : IRequestHandler<Ca
             await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             return Result.Success();
         }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        catch (DomainException ex)
         {
-            return Result.Failure(ex.Message);
+            return Result.Failure(ex.Reason, ex.Message);
         }
     }
 }

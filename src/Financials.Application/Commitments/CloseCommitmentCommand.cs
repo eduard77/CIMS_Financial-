@@ -1,5 +1,6 @@
 using Financials.Application.Common;
 using Financials.Application.Persistence;
+using Financials.Domain.Common;
 using FluentValidation;
 using MediatR;
 
@@ -40,13 +41,13 @@ public sealed class CloseCommitmentCommandHandler : IRequestHandler<CloseCommitm
 
         if (string.IsNullOrEmpty(_currentUser.UserId))
         {
-            return Result.Failure("An authenticated user is required to close a commitment.");
+            return Result.Unauthorized("An authenticated user is required to close a commitment.");
         }
 
         var commitment = await _commitments.FindByIdAsync(request.CommitmentId, cancellationToken).ConfigureAwait(false);
         if (commitment is null)
         {
-            return Result.Failure($"Commitment {request.CommitmentId} not found.");
+            return Result.NotFound($"Commitment {request.CommitmentId} not found.");
         }
 
         try
@@ -55,9 +56,9 @@ public sealed class CloseCommitmentCommandHandler : IRequestHandler<CloseCommitm
             await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             return Result.Success();
         }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        catch (DomainException ex)
         {
-            return Result.Failure(ex.Message);
+            return Result.Failure(ex.Reason, ex.Message);
         }
     }
 }

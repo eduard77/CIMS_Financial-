@@ -51,7 +51,7 @@ public sealed class RaiseCommitmentCommandHandler : IRequestHandler<RaiseCommitm
                 request.FinancialsProjectId, request.Type, request.Reference, cancellationToken)
             .ConfigureAwait(false))
         {
-            return Result<Guid>.Failure(
+            return Result<Guid>.Conflict(
                 $"Commitment {request.Type} '{request.Reference}' already exists for this project.");
         }
 
@@ -62,13 +62,13 @@ public sealed class RaiseCommitmentCommandHandler : IRequestHandler<RaiseCommitm
                 .ConfigureAwait(false);
             if (counterparty is null)
             {
-                return Result<Guid>.Failure(
+                return Result<Guid>.NotFound(
                     $"CIMS organisation {request.CounterpartyCimsOrganisationId} not found.");
             }
         }
         catch (HttpRequestException)
         {
-            return Result<Guid>.Failure("CIMS is currently unavailable. Try again in a moment.");
+            return Result<Guid>.DependencyUnavailable("CIMS is currently unavailable. Try again in a moment.");
         }
 
         var commitment = Commitment.Create(

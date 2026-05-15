@@ -40,9 +40,8 @@ public sealed class FinancialsProject : IAuditable
     {
         if (cimsProjectId == Guid.Empty)
         {
-            throw new ArgumentException(
-                "A CIMS project id is required to confirm a project for Financials.",
-                nameof(cimsProjectId));
+            throw DomainException.ValidationFailed(
+                "A CIMS project id is required to confirm a project for Financials.");
         }
 
         return new FinancialsProject

@@ -1,6 +1,7 @@
 using Financials.Application.Cims;
 using Financials.Application.Common;
 using Financials.Application.Persistence;
+using Financials.Domain.Common;
 using Financials.Domain.Projects;
 using FluentValidation;
 using MediatR;
@@ -87,13 +88,13 @@ public sealed class ConfigureProjectCommercialSetupCommandHandler
         }
         catch (HttpRequestException)
         {
-            return Result<Guid>.Failure(
+            return Result<Guid>.DependencyUnavailable(
                 "CIMS is currently unavailable. Try again in a moment.");
         }
 
         if (templates.All(t => t.Id != request.ContractTemplateId))
         {
-            return Result<Guid>.Failure(
+            return Result<Guid>.Failure(FailureReason.ValidationFailed,
                 $"Contract template {request.ContractTemplateId} is not in the CIMS catalog.");
         }
 

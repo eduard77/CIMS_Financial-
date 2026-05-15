@@ -50,20 +50,22 @@ public sealed class ProjectCommercialConfiguration : IAuditable
     {
         if (financialsProjectId == Guid.Empty)
         {
-            throw new ArgumentException(
-                "FinancialsProjectId is required.",
-                nameof(financialsProjectId));
+            throw DomainException.ValidationFailed("FinancialsProjectId is required.");
         }
 
         if (contractTemplateId == Guid.Empty)
         {
-            throw new ArgumentException(
-                "A contract template must be selected.",
-                nameof(contractTemplateId));
+            throw DomainException.ValidationFailed("A contract template must be selected.");
         }
 
-        ArgumentNullException.ThrowIfNull(retention);
-        ArgumentNullException.ThrowIfNull(paymentTerms);
+        if (retention is null)
+        {
+            throw DomainException.ValidationFailed("Retention scheme is required.");
+        }
+        if (paymentTerms is null)
+        {
+            throw DomainException.ValidationFailed("Payment terms are required.");
+        }
 
         return new ProjectCommercialConfiguration
         {
@@ -84,13 +86,17 @@ public sealed class ProjectCommercialConfiguration : IAuditable
     {
         if (contractTemplateId == Guid.Empty)
         {
-            throw new ArgumentException(
-                "A contract template must be selected.",
-                nameof(contractTemplateId));
+            throw DomainException.ValidationFailed("A contract template must be selected.");
         }
 
-        ArgumentNullException.ThrowIfNull(retention);
-        ArgumentNullException.ThrowIfNull(paymentTerms);
+        if (retention is null)
+        {
+            throw DomainException.ValidationFailed("Retention scheme is required.");
+        }
+        if (paymentTerms is null)
+        {
+            throw DomainException.ValidationFailed("Payment terms are required.");
+        }
 
         ContractTemplateId = contractTemplateId;
         RetentionScheme = retention;
