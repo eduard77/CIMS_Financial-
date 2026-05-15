@@ -32,7 +32,11 @@ dotnet_diagnostic.CA2007.severity = none      # ConfigureAwait — not needed in
 # EF Core generates migration files; relax analyser noise scoped to that folder.
 # CA1062 (null guards) — migrations are only ever invoked by EF with a real builder.
 # CA1707 (no underscores) — InitialCreate / AddFinancialsProjects names follow EF convention.
+# CA1861 (constant arrays) — EF emits new[] literals in Up/Down bodies.
+# IDE0161 (file-scoped namespaces) — EF scaffolds with block-scoped namespaces;
+#   rewriting them just to satisfy style triggers noisy diffs on every migration.
 [**/Persistence/Migrations/*.cs]
 dotnet_diagnostic.CA1062.severity = none
 dotnet_diagnostic.CA1707.severity = none
 dotnet_diagnostic.CA1861.severity = none
+dotnet_diagnostic.IDE0161.severity = none
