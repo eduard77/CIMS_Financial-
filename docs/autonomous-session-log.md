@@ -7,7 +7,127 @@
 
 ---
 
-## Session 3 (resume #2) — in progress
+## Session 3 (resume #2) — COMPLETE
+
+**Tests: 232 → 281 (+49). All builds (Release + Debug) clean, all tests green,
+`dotnet format --verify-no-changes` clean.**
+
+Commits this session (8 + the re-triage planning commit + this final-summary
+commit = 10 commits, oldest first):
+
+1. `8095a08` — Re-triage of the open findings queue (planning, no code).
+2. `9814be7` — n-7: replace 26 per-class CA1812 suppressions with one
+   assembly-level in `GlobalSuppressions.cs`.
+3. `6e5b463` — Do-now batch: M-6 (BoQ decimal precision), m-2
+   (HmacSignatureVerifier extracted + direct unit tests), m-5 (Polly retry
+   budget validator + tests), n-2 (CA1030 re-verified, suppression kept
+   with updated comment), n-3 (CompositeFormat templates grouped in
+   `CimsRoutes`), n-4 (EF private ctor comments), n-5 (appsettings
+   webhook-secret startup message friendliness + `ValidateOnStart`).
+4. `816a017` — M-1 dispatcher (transport-independent half):
+   `IOutboxEventTransport` seam, `OutboxDispatcherService` with row-locked
+   claim, `NoOpOutboxEventTransport`, `OutboxDispatcherOptions`, 8
+   infrastructure-ring tests including concurrent-claim disjointness and
+   poison-message guard. Also disabled xUnit parallelism in both
+   Testcontainer-heavy projects (Docker resource exhaustion).
+5. `a05206d` — Architecture tests: layering (4 cases), handler naming
+   (2 cases), aggregate invariants (3 cases). Hand-rolled reflection;
+   no NetArchTest dependency (justified in commit body).
+6. `87114c9` — Stryker.NET mutation report on `Financials.Domain`:
+   67.91% score, full report `docs/mutation-report-domain.md`, top 5
+   surviving mutants logged as mut-1..mut-5 in
+   `docs/code-review-findings.md`. Stryker installed and uninstalled.
+7. `e81c131` — Documentation pass: CONTRIBUTING.md updated (diff-style)
+   for ADR-0001/0002, FailureReason convention, RequiresPermission
+   contract test, four test rings, mutation testing instructions.
+   README.md status line bumped.
+
+### Findings queue — final state across all three sessions
+
+| ID | Description | Status |
+|---|---|---|
+| Critical | — | None |
+| **M-1** | Pattern B outbox | **Done** (write-side + dispatcher machinery; transport awaits CIMS spec) |
+| **M-2** | Handler-level authorization | **Done** |
+| **M-3** | Role-permission contract test | **Done** |
+| **M-4** | `Result<T>` + typed `FailureReason` + `DomainException` | **Done** |
+| **M-5** | BoQ parser strict decimal | **Done** |
+| **M-6** | BoQ decimal precision >4dp | **Done** (Session 3) |
+| **M-7** | Budget line currency enforcement | **Done** |
+| **M-8** | Poison-message handler | **Done** |
+| **m-1** | `FinancialsDbContext` sealed | **Done** |
+| **m-2** | `HmacSignatureVerifier` direct unit tests | **Done** (Session 3) |
+| **m-3** | `Result.ValidationFailure` rejects empty | **Done** |
+| **m-4** | Inbox internal visibility | **Closed by symmetry** with the outbox (same visibility convention applied) |
+| **m-5** | Polly retry vs `HttpClient.Timeout` | **Done** (Session 3: `CimsRetryBudget` + `ValidateOnStart`) |
+| **m-6** | `.Include` eager loading | **Deferred** — unblocker: a project with >30 revisions or >5000 budget lines, or Budget list page latency >500 ms in production telemetry. |
+| **m-7** | `FinancialsRole.Unknown` | **Deferred** — unblocker: decision from CIMS team on whether `Unknown` is a legitimate cross-product role value or should be a contract violation. |
+| **m-8** | Page-level auth sync with handler-level | **Closed by M-2** |
+| **m-9** | Reconciliation hardcoded "GBP" | **Done** |
+| **m-10** | Cross-currency summation hazard | **Done** |
+| **n-1** | `Result<T>.Value` nullable on success | **Deferred — needs its own ADR** — unblocker: dedicated ADR proposing `Result<T> where T : notnull` and a sprint-sized callsite migration. Touches every caller of `Result<T>.Value`. |
+| **n-2** | CA1030 test suppression | **Done** (Session 3: re-verified, still required) |
+| **n-3** | `CompositeFormat` grouping | **Done** (Session 3) |
+| **n-4** | EF private ctor comments | **Done** (Session 3) |
+| **n-5** | appsettings webhook-secret friendliness | **Done** (Session 3) |
+| **n-6** | README status refresh | **Done** in session 1 |
+| **n-7** | CA1812 duplication | **Done** (Session 3) |
+| **mut-1..mut-5** | Surviving mutants from Stryker run | **Open — documented, not auto-fixed** per resume-#2 prompt's explicit instruction. |
+
+**Closed in Session 3:** M-1 dispatcher (write-side was done in Session 2;
+this session built the dispatcher), M-6, m-2, m-5, n-2, n-3, n-4, n-5, n-7,
+plus closing m-4 by symmetry (no code action; design noted).
+
+**Genuinely deferred — with concrete unblockers:**
+- **M-1 transport** — needs the CIMS-side webhook URL, auth, and HMAC
+  signature shape.
+- **m-6** — needs a measurable latency trigger (>500 ms Budget page, or
+  >30 revisions / >5000 lines in production).
+- **m-7** — needs the CIMS team to decide whether `Unknown` is a legal
+  role value or a contract violation.
+- **n-1** — needs its own ADR + a sprint-sized callsite migration.
+- **mut-1..mut-5** — needs human triage on each (test gap vs. design call).
+
+### New top 3 things to review (replaces the previous list)
+
+The previous list cited ADR-0001 (still the most consequential convention
+change) and the outbox atomicity test (still important) as the top two.
+Keeping ADR-0001 because the human hasn't reviewed it yet; replacing the
+others with the higher-priority Session-3 items.
+
+1. **ADR-0001 (`docs/adr/0001-failure-vs-exception.md`).** Still the most
+   consequential convention shift; if you disagree with the
+   FailureReason set or the DomainException-as-single-carrier approach,
+   M-4 needs rework across every aggregate and handler.
+2. **The outbox dispatcher** (`OutboxDispatcherService` +
+   `IOutboxEventTransport` + the `Concurrent_dispatchers_claim_disjoint_event_sets`
+   test). This is the new piece F3 (Sprint 7) inherits. Worth eyeballing
+   the SQL hint `WITH (UPDLOCK, READPAST, ROWLOCK)` — that's the entire
+   row-locking guarantee. Also worth deciding before F3 starts whether
+   the NoOp transport's behaviour (every event eventually goes to Failed
+   after MaxAttempts polls) is the right interim default, or whether a
+   "Success-without-publish" stub is friendlier until the CIMS transport
+   lands.
+3. **The architecture tests** (`tests/Financials.Integration.Tests/Architecture/`).
+   Read them once. If any rule is wrong for your intent — e.g., you'd
+   actually allow handlers outside the listed slice namespaces, or
+   accept public setters somewhere — fix the test, log the exception,
+   and move on. The default position is "the rule is the contract;
+   broken rules mean broken code." Three rule files, 9 cases.
+
+### What is *not* in scope for any future hardening pass
+
+- **`mut-1..mut-5`** are human-triage findings; they should NOT be
+  auto-resolved by a fourth autonomous session.
+- **CIMS-spec-blocked items** (M-1 transport, m-7 `Unknown` role) are
+  blocked on external input; no autonomous progress is possible.
+- The `n-1` Result-nullability ADR is also out of scope for autonomous
+  work — it's a sprint-sized callsite migration that should be reviewed
+  by a human first.
+
+---
+
+## Session 3 (resume #2) — original triage
 
 Re-triage of the 12 open items (the log previously said "6 minors/nits" — actual
 count is 1 major + 5 minors + 6 nits + the outbox dispatcher = 13). Each item
@@ -38,7 +158,7 @@ tests; then mutation testing; then docs; then final pass.
 
 ---
 
-## Final Summary
+## Final Summary (sessions 1 + 2 — superseded by the Session 3 summary above)
 
 **Branch:** `chore/autonomous-hardening-2026-05-15` (off `main` post-Sprint-6)
 **Base:** `653495c` (Merge PR #8 — Sprint 6 F2 closeout)
