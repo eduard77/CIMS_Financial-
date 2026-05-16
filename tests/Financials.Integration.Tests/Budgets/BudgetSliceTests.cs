@@ -165,6 +165,87 @@ public sealed class BudgetSliceTests : IAsyncLifetime
         late.Error.Should().Contain("Approved");
     }
 
+    [Fact]
+    public async Task Rollup_total_reconciles_across_cost_code_and_work_package_groupings()
+    {
+        // Pre-F3 blocker for plan §8 F1 #4 (bidirectional reconciliation).
+        // The same lines are summed two ways (by cost code, by work package);
+        // both sums must equal the project Total exactly. F3 will be the
+        // first writer to extend this rollup with change deltas — if this
+        // invariant isn't pinned, F3 can silently corrupt it.
+        //
+        // Input shape (per the pre-F3 blocker prompt):
+        //   * 3 cost codes (A/B/C) and 2 work packages (Substructure/Frame).
+        //   * Cost code A appears in BOTH work packages (cross-grouping is
+        //     non-trivial).
+        //   * One line uses qty * rate = 7 * 14.2857 = 99.9999, which exercises
+        //     the decimal(19,4) precision boundary.
+        //   * 6 lines total.
+        var financialsProjectId = await ConfirmProjectAsync();
+        var ccA = Guid.NewGuid();
+        var ccB = Guid.NewGuid();
+        var ccC = Guid.NewGuid();
+
+        await using var scope = _provider!.CreateAsyncScope();
+        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+
+        var budgetId = (await mediator.Send(new CreateBudgetCommand(financialsProjectId))).Value;
+        var revisionId = (await mediator.Send(new OpenBudgetRevisionCommand(budgetId, "reconciliation invariant"))).Value;
+
+        // (lineNumber, costCode, qty, rate, package) — every (qty * rate) is
+        // representable inside decimal(19,4). The sub-penny case is line 2
+        // (7 * 14.2857 = 99.9999), which would round-trip surprisingly if
+        // anyone introduced a stray cast to a lower precision.
+        var lines = new[]
+        {
+            (1, ccA, 3m,  33.33m,    "Substructure"),
+            (2, ccA, 7m,  14.2857m,  "Frame"),
+            (3, ccB, 11m, 9.1111m,   "Substructure"),
+            (4, ccB, 5m,  20.20m,    "Frame"),
+            (5, ccC, 3m,  66.67m,    "Substructure"),
+            (6, ccC, 2m,  49.99m,    "Frame"),
+        };
+
+        foreach (var (lineNumber, costCode, qty, rate, pkg) in lines)
+        {
+            var add = await mediator.Send(new AddBudgetLineCommand(
+                budgetId, revisionId, lineNumber, costCode,
+                Description: $"Line {lineNumber}",
+                Quantity: qty,
+                UnitOfMeasure: "no",
+                UnitRateAmount: rate,
+                WorkPackage: pkg));
+            add.IsSuccess.Should().BeTrue($"line {lineNumber} should add cleanly");
+        }
+
+        (await mediator.Send(new ApproveBudgetRevisionCommand(budgetId, revisionId)))
+            .IsSuccess.Should().BeTrue();
+
+        var rollup = (await mediator.Send(new GetBudgetRollupQuery(financialsProjectId))).Value!;
+
+        // The invariant: summing the same lines two ways MUST agree exactly.
+        // No £0.01 tolerance — internal reconciliation across groupings of
+        // identical input is not subject to rounding (the values are the
+        // same decimals, just summed in a different order).
+        var byCostCodeTotal = rollup.ByCostCode.Sum(g => g.Total);
+        var byWorkPackageTotal = rollup.ByWorkPackage.Sum(g => g.Total);
+
+        rollup.Total.Should().Be(byCostCodeTotal,
+            "Total must equal the sum of cost-code group totals exactly");
+        rollup.Total.Should().Be(byWorkPackageTotal,
+            "Total must equal the sum of work-package group totals exactly");
+        byCostCodeTotal.Should().Be(byWorkPackageTotal,
+            "the two groupings must reconcile to each other (redundant given the above, but pins the symmetry)");
+
+        // Sanity: the data we built is what we expected to build, so the
+        // invariant assertions above aren't passing on degenerate input.
+        rollup.ByCostCode.Should().HaveCount(3);
+        rollup.ByWorkPackage.Should().HaveCount(2);
+        rollup.Total.Should().Be(
+            99.99m + 99.9999m + 100.2221m + 101.00m + 200.01m + 99.98m,
+            "the rollup arithmetic should match the hand-computed total");
+    }
+
     private async Task<Guid> ConfirmProjectAsync()
     {
         var cimsProjectId = Guid.NewGuid();

@@ -7,6 +7,27 @@
 
 ---
 
+## Session 6 (pre-F3 blocker fix — reconciliation invariant tests) — 2026-05-16
+
+Two property-style tests added to close the two pre-F3 blockers named in
+`docs/plan-conformance-f0-f2.md`:
+
+- `BudgetSliceTests.Rollup_total_reconciles_across_cost_code_and_work_package_groupings`
+  pins F1 #4. Uses 6 lines across 3 cost codes and 2 work packages
+  (with cost code A spanning both packages and one line forcing the
+  decimal(19,4) precision boundary at `7 × 14.2857 = 99.9999`). Asserts
+  `Total == ByCostCode.Sum() == ByWorkPackage.Sum()` exactly.
+- `F2CloseoutSliceTests.Reconciliation_invariant_holds_across_per_row_and_project_totals`
+  pins F2 #4. Uses 3 cost codes with 4 commitments (2 against cost code A)
+  totalling 7 commitment lines; deliberately non-clean splits including
+  the £166.67 + £166.67 + £166.66 = £500 case. Asserts the project-total
+  invariant, the per-row invariant on every row, and the cross-level
+  invariants.
+
+Both passed on first run; no production code touched. Full suite: 281 → 283.
+
+---
+
 ## Session 4 (read-only investigation) — 2026-05-16
 
 **Scope:** read-only. No production code, tests, csproj, props, CI, or ADRs

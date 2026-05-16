@@ -167,6 +167,112 @@ public sealed class F2CloseoutSliceTests : IAsyncLifetime
         single.DaysUntilExpiry.Should().BeInRange(4, 5);
     }
 
+    [Fact]
+    public async Task Reconciliation_invariant_holds_across_per_row_and_project_totals()
+    {
+        // Pre-F3 blocker for plan §8 F2 #4 ("committed + uncommitted = budget,
+        // always"). F3 will be the first writer to the "+ approved changes"
+        // term in this invariant; the F2 half must be pinned first so a
+        // regression in either direction is caught.
+        //
+        // Input shape (per the pre-F3 blocker prompt):
+        //   * 3 cost codes in the budget (A=£1000, B=£500, C=£750).
+        //   * Multiple commitments against the SAME cost code (ccA has two
+        //     commitments) so per-row aggregation is non-trivial.
+        //   * Values that don't divide evenly: £500 split across three lines
+        //     as £166.67 + £166.67 + £166.66 (the classic pence-stuck-out
+        //     case); £733.33 split across two commitments on ccA.
+        //   * 7 commitment lines total across 4 commitments.
+        var cimsProjectId = Guid.NewGuid();
+        var counterpartyId = Guid.NewGuid();
+        var contractTemplateId = Guid.NewGuid();
+        var ccA = Guid.NewGuid();
+        var ccB = Guid.NewGuid();
+        var ccC = Guid.NewGuid();
+
+        _cims.GetProjectAsync(cimsProjectId, Arg.Any<CancellationToken>())
+            .Returns(new CimsProjectSummary(cimsProjectId, "Tower", "PRJ-RECON"));
+        _cims.GetOrganisationAsync(counterpartyId, Arg.Any<CancellationToken>())
+            .Returns(new CimsOrganisationSummary(counterpartyId, "Acme", "ORG-RECON", OrganisationType.Subcontractor));
+        _cims.ListContractTemplatesAsync(Arg.Any<CancellationToken>())
+            .Returns(new[] { new ContractTemplateSummary(contractTemplateId, "NEC4 Option C", ContractFamily.Nec4, "ECC") });
+
+        await using var scope = _provider!.CreateAsyncScope();
+        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+
+        var financialsProjectId = (await mediator.Send(new ConfirmCimsProjectCommand(cimsProjectId))).Value;
+        await mediator.Send(new ConfigureProjectCommercialSetupCommand(
+            financialsProjectId, contractTemplateId,
+            5m, 50m, 50m, 30, 30, null, OverCommitmentGuardMode.Warn));
+
+        var budgetId = (await mediator.Send(new CreateBudgetCommand(financialsProjectId))).Value;
+        var revisionId = (await mediator.Send(new OpenBudgetRevisionCommand(budgetId, "initial"))).Value;
+        (await mediator.Send(new AddBudgetLineCommand(budgetId, revisionId, 1, ccA, "Sub work A", 1m, "no", 1000.00m))).IsSuccess.Should().BeTrue();
+        (await mediator.Send(new AddBudgetLineCommand(budgetId, revisionId, 2, ccB, "Sub work B", 1m, "no", 500.00m))).IsSuccess.Should().BeTrue();
+        (await mediator.Send(new AddBudgetLineCommand(budgetId, revisionId, 3, ccC, "Sub work C", 1m, "no", 750.00m))).IsSuccess.Should().BeTrue();
+        (await mediator.Send(new ApproveBudgetRevisionCommand(budgetId, revisionId))).IsSuccess.Should().BeTrue();
+
+        // Commitment 1 — Subcontract against ccA, 1 line of £400.
+        var sub1 = (await mediator.Send(new RaiseCommitmentCommand(
+            financialsProjectId, CommitmentType.Subcontract, "SC-RECON-A1", counterpartyId))).Value;
+        (await mediator.Send(new AddCommitmentLineCommand(sub1, 1, ccA, "Sub A line 1", 4m, "no", 100.00m))).IsSuccess.Should().BeTrue();
+        (await mediator.Send(new ActivateCommitmentCommand(sub1))).IsSuccess.Should().BeTrue();
+
+        // Commitment 2 — Subcontract against ccA, 1 line of £333.33 (ccA now has
+        // 2 active commitments — exercises per-cost-code aggregation across
+        // commitments).
+        var sub2 = (await mediator.Send(new RaiseCommitmentCommand(
+            financialsProjectId, CommitmentType.Subcontract, "SC-RECON-A2", counterpartyId))).Value;
+        (await mediator.Send(new AddCommitmentLineCommand(sub2, 1, ccA, "Sub A line 2", 1m, "no", 333.33m))).IsSuccess.Should().BeTrue();
+        (await mediator.Send(new ActivateCommitmentCommand(sub2))).IsSuccess.Should().BeTrue();
+
+        // Commitment 3 — Purchase order against ccB, 3 lines that don't divide
+        // evenly (£166.67 + £166.67 + £166.66 = £500.00). The classic case where
+        // a regression in per-row rounding would surface.
+        var po = (await mediator.Send(new RaiseCommitmentCommand(
+            financialsProjectId, CommitmentType.PurchaseOrder, "PO-RECON-B", counterpartyId))).Value;
+        (await mediator.Send(new AddCommitmentLineCommand(po, 1, ccB, "PO B line 1", 1m, "no", 166.67m))).IsSuccess.Should().BeTrue();
+        (await mediator.Send(new AddCommitmentLineCommand(po, 2, ccB, "PO B line 2", 1m, "no", 166.67m))).IsSuccess.Should().BeTrue();
+        (await mediator.Send(new AddCommitmentLineCommand(po, 3, ccB, "PO B line 3", 1m, "no", 166.66m))).IsSuccess.Should().BeTrue();
+        (await mediator.Send(new ActivateCommitmentCommand(po))).IsSuccess.Should().BeTrue();
+
+        // Commitment 4 — Subcontract against ccC, 2 lines totalling £375.75.
+        var sub3 = (await mediator.Send(new RaiseCommitmentCommand(
+            financialsProjectId, CommitmentType.Subcontract, "SC-RECON-C", counterpartyId))).Value;
+        (await mediator.Send(new AddCommitmentLineCommand(sub3, 1, ccC, "Sub C line 1", 1m, "no", 250.50m))).IsSuccess.Should().BeTrue();
+        (await mediator.Send(new AddCommitmentLineCommand(sub3, 2, ccC, "Sub C line 2", 1m, "no", 125.25m))).IsSuccess.Should().BeTrue();
+        (await mediator.Send(new ActivateCommitmentCommand(sub3))).IsSuccess.Should().BeTrue();
+
+        var reconciliation = (await mediator.Send(new GetCommitmentReconciliationQuery(financialsProjectId))).Value!;
+
+        // Project-total invariant: budget = committed + uncommitted (exact).
+        reconciliation.BudgetTotal.Should().Be(
+            reconciliation.CommittedTotal + reconciliation.Uncommitted,
+            "project-total invariant: BudgetTotal == CommittedTotal + Uncommitted (plan §8 F2 #4)");
+
+        // Per-row invariant: budget = committed + uncommitted on every row.
+        reconciliation.ByCostCode.Should().AllSatisfy(row =>
+            row.Budget.Should().Be(row.Committed + row.Uncommitted,
+                $"per-row invariant for cost code {row.CimsCostCodeId}: Budget == Committed + Uncommitted"));
+
+        // Cross-level invariants: row sums must equal project totals.
+        reconciliation.BudgetTotal.Should().Be(
+            reconciliation.ByCostCode.Sum(r => r.Budget),
+            "BudgetTotal must equal the sum of per-row Budget values exactly");
+        reconciliation.CommittedTotal.Should().Be(
+            reconciliation.ByCostCode.Sum(r => r.Committed),
+            "CommittedTotal must equal the sum of per-row Committed values exactly");
+        reconciliation.Uncommitted.Should().Be(
+            reconciliation.ByCostCode.Sum(r => r.Uncommitted),
+            "Uncommitted must equal the sum of per-row Uncommitted values exactly");
+
+        // Sanity: at least one row has Committed > 0 (otherwise the invariants
+        // would be trivially satisfied by zeros across the board).
+        reconciliation.ByCostCode.Should().Contain(r => r.Committed > 0m,
+            "the scenario must actually have active commitments — otherwise the invariants are vacuous");
+        reconciliation.ByCostCode.Should().HaveCount(3, "3 distinct cost codes in the budget");
+    }
+
     private async Task<TestSetup> SetupBudgetAndCounterpartyAsync(
         OverCommitmentGuardMode mode,
         decimal budgetForCostCode)
