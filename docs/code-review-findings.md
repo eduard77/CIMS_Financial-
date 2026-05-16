@@ -12,6 +12,79 @@ a triage queue.
 
 ---
 
+## Session-5 findings (plan-conformance audit, 2026-05-16)
+
+Surfaced by `docs/plan-conformance-f0-f2.md` measuring the codebase
+against the plan's §8 passing criteria for F0 / F1 / F2. The outbox
+`MaxAttempts`-vs-plan-§4-"retry indefinitely" contradiction was excluded
+per the audit prompt's "already known and tracked" instruction; it would
+otherwise be s5-0.
+
+### s5-1 — F1 #1: £0.01 rollup tolerance is never exercised
+
+`tests/Financials.Integration.Tests/F1/F1ImportSliceTests.cs:108` and
+`tests/Financials.Integration.Tests/Budgets/BudgetSliceTests.cs:113` both
+assert rollup totals via `Should().Be(...)` (exact equality) against
+penny-clean inputs (`25m * 12.50m`, `5m * 18m`, `50m * 19.99m`). The plan
+criterion is "rollups reconcile to within £0.01," which is only
+falsifiable against rounding-prone inputs. A regression in rounding
+would not be caught by either test. Add a test whose `quantity * rate`
+produces a sub-penny remainder and assert the total stays within £0.01
+of the manually computed expected value.
+
+### s5-2 — F1 #4: rollup levels are 2 of 4, and bidirectional reconciliation is not asserted
+
+`src/Financials.Application/Budgets/GetBudgetRollupQuery.cs` produces
+`ByCostCode` and `ByWorkPackage` groups. The plan criterion names four
+levels: project → package → cost code → activity. Activity-level rollup
+is absent despite `BudgetLine.ActivityId`
+(`src/Financials.Domain/Budgets/BudgetLine.cs:32`) being populated by the
+`ScheduleActivityCostLoadedHandler`. Project-level total is a single
+scalar (`BudgetRollupDto.Total`).
+
+Independent of the missing levels: the "reconciles bidirectionally"
+invariant — `Total == ByCostCode.Sum(...) == ByWorkPackage.Sum(...)` —
+is not asserted by any test. This is one of two Pre-F3 blockers
+identified in the audit.
+
+### s5-3 — F2 #1: `CommitmentLine` has no `WorkPackage` field
+
+`src/Financials.Domain/Commitments/CommitmentLine.cs:7-15` defines
+`CommitmentId`, `LineNumber`, `CimsCostCodeId`, `Description`,
+`Quantity`, `UnitOfMeasure`, `UnitRate`, `Value` — no work-package axis.
+The plan F2 #1 criterion explicitly names "package scope" as a required
+attribute of a raised commitment. `BudgetLine` has the field
+(`src/Financials.Domain/Budgets/BudgetLine.cs:30`); aggregation in the
+over-commitment guard happens by `CimsCostCodeId` only, so a commitment
+and a budget line are linked implicitly through shared cost codes rather
+than explicitly through package + cost code.
+
+### s5-4 — F2 #4: reconciliation invariant `committed + uncommitted = budget` is not asserted
+
+`tests/Financials.Integration.Tests/F2/F2CloseoutSliceTests.cs:119-140`
+asserts specific scalar values
+(`BudgetTotal == 1000m`, `CommittedTotal == 600m`,
+`Uncommitted == 400m`) for one scenario. It does not assert
+`BudgetTotal == CommittedTotal + Uncommitted` as a property. The plan's
+"always" wording implies the invariant must hold across arbitrary
+(budget, commitments) tuples. F3 will be the first writer to the
+"+ approved changes" term in this invariant; pinning the F2 half before
+F3 starts is the second of two Pre-F3 blockers identified in the audit.
+
+### s5-5 — F0 #1: cost-code depth + Uniclass surfacing has no automated check
+
+`src/Financials.Web/Components/Pages/ProjectSetup.razor:131-147`
+displays a `MudAlert` if `_costCodes.Max(c => c.Depth) < 4`. No test
+asserts the alert fires (or doesn't). The "each leaf code mapped to a
+Uniclass 2015 code" half of the criterion is not surfaced anywhere on
+the Financials side — `CostCodeNode.UniclassCode` is `string?`
+(`src/Financials.Application/Cims/CostCodeNode.cs:13`), and there is no
+UI warning or test for a leaf with a null `UniclassCode`. Whether
+Financials should enforce a CIMS-owned invariant is a design question;
+either way, the current state is a silent gap.
+
+---
+
 ## Session-4 read-through findings (2026-05-16)
 
 Spotted while writing `docs/architecture-overview.md` — a read-only pass
