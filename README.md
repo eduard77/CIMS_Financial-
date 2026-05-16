@@ -118,6 +118,7 @@ The repo's documentation has four layers, each with a different audience and pur
 ### Layer 2 — Operating instructions
 
 - **[CLAUDE.md](./CLAUDE.md)** — operating instructions for any Claude Code session working on this repo. Conventions, anti-patterns, sprint plan, definition of done. Read at the start of every session.
+- **[docs/architecture-overview.md](./docs/architecture-overview.md)** — navigational map of the codebase aimed at a new contributor with 90 minutes to get their bearings. Project layout, where things live, the conventions that aren't obvious from reading the code, and a 15-file reading path.
 
 ### Layer 3 — Compliance and decisions
 

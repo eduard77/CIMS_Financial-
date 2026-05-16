@@ -12,6 +12,68 @@ a triage queue.
 
 ---
 
+## Session-4 read-through findings (2026-05-16)
+
+Spotted while writing `docs/architecture-overview.md` — a read-only pass
+through the codebase. Logged here per the read-only-session rule.
+
+### s4-1 — `ImportBoqCommand` returns the legacy untyped `Result.Failure(string)` for a parse failure that is semantically `ValidationFailed`
+
+`src/Financials.Application/Budgets/ImportBoqCommand.cs:55` returns
+`Result<ImportBoqResult>.Failure($"BoQ XML failed to parse: ...")`. After
+the M-4 migration the rest of the codebase consistently uses the typed
+overload (`Result.Failure(FailureReason.X, ...)` or one of the helpers).
+A parse failure is unambiguously `ValidationFailed`. Minor inconsistency.
+
+### s4-2 — `CimsClient.PingAsync` swallows `HttpRequestException` while every other `ICimsClient` method propagates it
+
+`src/Financials.Infrastructure/Cims/CimsClient.cs:52-56` catches
+`HttpRequestException` and returns `false`. The `ICimsClient` interface doc
+comment says "methods throw `HttpRequestException` on transport failure
+(handler converts to `Result.Failure`)". `PingAsync` is the only divergent
+method. The shape works for `CimsClientHealthCheck` (which calls `PingAsync`
+and translates a `false` to `HealthCheckResult.Degraded`-equivalent) but it
+violates the interface's documented contract. Either tighten the contract
+to say "Ping returns false on failure; everything else throws", or make
+Ping throw and have the health check catch. Minor.
+
+### s4-3 — `InboxEventDispatcher` has a TOCTOU between the duplicate-check `AnyAsync` and the row insert
+
+`src/Financials.Infrastructure/Inbox/InboxEventDispatcher.cs:79-100`. The
+duplicate check runs outside the transaction; the transaction begins after.
+If two concurrent webhook deliveries arrive with the same `EventId`, both
+can pass the `AnyAsync` check, then both attempt to insert, and one fails
+with `DbUpdateException` on the unique index. The dispatcher doesn't catch
+that exception — it propagates as a 500 to CIMS. CIMS retries; the second
+attempt sees the row from the first commit and returns `Duplicate`, so the
+system self-heals, but with a noisy 500 in between. Fix is either: move the
+duplicate check inside the transaction, or catch `DbUpdateException` on the
+unique-violation case and translate to `Duplicate`. Minor.
+
+### s4-4 — `OutboxDispatcherService` claim SQL hardcodes `Status = 0`
+
+`src/Financials.Infrastructure/Outbox/OutboxDispatcherService.cs:115` reads
+`WHERE Status = 0` where `0` is `OutboxEventStatus.Pending`. A future
+reorder of the `OutboxEventStatus` enum would silently break the claim
+query (the dispatcher would claim Dispatched rows or skip Pending ones).
+No test pins the enum ordinal mapping. Fix is either: stamp explicit
+`[Display(Order=...)]` or numeric values on every enum member with a
+"do not reorder" comment, or — better — interpolate
+`(int)OutboxEventStatus.Pending` into the SQL at dispatcher startup. Minor.
+
+### s4-5 — Two ADR folders coexist with no ADR documenting why
+
+`docs/decisions/` (product, 0001–0009) and `docs/adr/` (hardening pass,
+0001–0002) both contain accepted ADRs with overlapping numbering schemes.
+CONTRIBUTING.md notes the split but doesn't justify it; no ADR explains
+the convention. This is more confusing than load-bearing — but if either
+folder grows further, the numbering collisions will start to bite
+(`adr/0003` vs `decisions/0010` — neither is obviously the "next" one).
+Nit. The cheapest fix is one ADR in `decisions/` deciding which folder
+new ADRs go in, and renumbering the hardening ones if needed.
+
+---
+
 ## Mutation-testing findings (Session 3)
 
 These came from a Stryker.NET 4.14.1 run against `Financials.Domain` only —

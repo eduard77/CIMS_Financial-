@@ -7,6 +7,45 @@
 
 ---
 
+## Session 4 (read-only investigation) — 2026-05-16
+
+**Scope:** read-only. No production code, tests, csproj, props, CI, or ADRs
+changed. Verified state at session start: working tree clean,
+`dotnet build -c Release` clean, fast-test rings green (Domain 82,
+Application 101, Infrastructure non-Testcontainer 47, Architecture 9).
+Full 281-test suite was last confirmed green at the end of Session 3
+(commit `1c1696b`); not re-run this session because nothing it tests was
+touched.
+
+**Produced:**
+- `docs/architecture-overview.md` — navigational map of the codebase aimed
+  at a new contributor with 90 minutes to get their bearings. Project map,
+  where-things-live table, the five conventions a careful reader would
+  not infer from the code, the integration boundary with CIMS, a 15-file
+  reading path, conventions-without-ADRs, open questions.
+
+**Findings added** to `docs/code-review-findings.md` under a new
+"Session-4 read-through findings" heading (5 entries, all minor or nit):
+- `s4-1` — `ImportBoqCommand` uses the legacy `Result.Failure(string)` for
+  a parse failure that is semantically `ValidationFailed`.
+- `s4-2` — `CimsClient.PingAsync` swallows `HttpRequestException` while
+  every other `ICimsClient` method propagates it; violates the interface
+  doc contract.
+- `s4-3` — `InboxEventDispatcher` has a TOCTOU between the duplicate-check
+  `AnyAsync` and the row insert; self-heals via the unique index + CIMS
+  retry but causes a noisy 500 in the middle.
+- `s4-4` — `OutboxDispatcherService` claim SQL hardcodes `Status = 0`;
+  silent breakage if the enum is reordered.
+- `s4-5` — Two ADR folders (`docs/decisions/` and `docs/adr/`) coexist
+  with overlapping numbering and no ADR documenting the split.
+
+**README update:** one line under "Layer 2 — Operating instructions"
+pointing at the new doc.
+
+**No code changes.** All builds and tests as left at the end of Session 3.
+
+---
+
 ## Session 3 (resume #2) — COMPLETE
 
 **Tests: 232 → 281 (+49). All builds (Release + Debug) clean, all tests green,
