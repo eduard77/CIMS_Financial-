@@ -11,7 +11,7 @@ using Microsoft.Extensions.Options;
 namespace Financials.Infrastructure.Outbox;
 
 /// <summary>
-/// Pattern B outbox dispatcher (ADR-0002). Background service that:
+/// Pattern B outbox dispatcher (ADR-0011). Background service that:
 ///   1. Claims a batch of <see cref="OutboxEventStatus.Pending"/> rows whose
 ///      <c>NextAttemptAt</c> has elapsed, using row-level locks with READPAST,
 ///      so concurrent dispatcher instances cooperate without deadlock — each
@@ -31,7 +31,7 @@ namespace Financials.Infrastructure.Outbox;
 /// the row locks for the duration. A dispatcher crash rolls back; the rows
 /// return to Pending visibility for the next poll cycle.
 ///
-/// The CIMS-facing transport implementation is deferred (see ADR-0002).
+/// The CIMS-facing transport implementation is deferred (see ADR-0011).
 /// Until it lands, <see cref="NoOpOutboxEventTransport"/> is registered and
 /// every event stays Pending indefinitely — which is exactly the plan §4
 /// "CIMS being down delays delivery; it never loses data" guarantee.

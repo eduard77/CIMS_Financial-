@@ -5,7 +5,7 @@ namespace Financials.Domain.Common;
 /// truth: when an aggregate refuses an operation it throws
 /// <see cref="DomainException"/> with the appropriate reason, and the handler
 /// propagates the reason verbatim into <c>Result.Failure(FailureReason, string)</c>.
-/// See ADR-0001 (continuation session, <c>docs/adr/0001-failure-vs-exception.md</c>).
+/// See ADR-0010 (<c>docs/decisions/0010-failure-vs-exception.md</c>).
 /// </summary>
 public enum FailureReason
 {

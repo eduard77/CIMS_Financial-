@@ -1,7 +1,7 @@
 namespace Financials.Infrastructure.Outbox;
 
 /// <summary>
-/// Tunables for the outbox dispatcher background service (ADR-0002).
+/// Tunables for the outbox dispatcher background service (ADR-0011).
 /// Bound from the <c>Outbox</c> configuration section.
 ///
 /// Plan §4 mandates "retry indefinitely with backoff" for transient failures —

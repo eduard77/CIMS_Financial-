@@ -3,8 +3,8 @@
 The map of Financials. Aimed at a competent C# contributor with 90 minutes to
 get their bearings. Read `README.md` and `CONTRIBUTING.md` first — this file
 does not repeat them. The high-level "why" is in [`docs/architecture.md`](./architecture.md)
-and the ADRs under [`docs/decisions/`](./decisions/) (product) and
-[`docs/adr/`](./adr/) (hardening-pass). This file is the navigational "where."
+and the ADRs under [`docs/decisions/`](./decisions/). This file is the
+navigational "where."
 
 ---
 
@@ -50,7 +50,7 @@ on, warnings-as-errors, `AnalysisLevel=latest`, `AnalysisMode=AllEnabledByDefaul
 | A new infrastructure test | `tests/Financials.Infrastructure.Tests/` with `[Trait("Category","Infrastructure")]`. Testcontainers SQL Server; xUnit parallelism disabled in this assembly. | `Outbox/OutboxDispatcherServiceTests.cs` |
 | A new integration slice test | `tests/Financials.Integration.Tests/<F-module>/` with `[Trait("Category","Infrastructure")]` (slices use the same trait as infra). | `F1/F1ImportSliceTests.cs` |
 | A new architecture test | `tests/Financials.Integration.Tests/Architecture/` with `[Trait("Category","Architecture")]`. | `Architecture/LayeringTests.cs` |
-| A new ADR | Pre-existing product ADRs go under `docs/decisions/` (numbered 0001+). Hardening-pass ADRs are under `docs/adr/`. Both folders coexist. Use `docs/decisions/0000-template.md`. | `decisions/0006-budget-aggregate-structure.md` |
+| A new ADR | All ADRs live under `docs/decisions/` (numbered 0001+). Use `docs/decisions/0000-template.md`. | `decisions/0006-budget-aggregate-structure.md` |
 | A new Razor page | `src/Financials.Web/Components/Pages/`; `@attribute [Authorize(Policy = AuthorizationPolicies.X)]` at the top. | `Pages/ProjectsConfirm.razor` |
 
 ---
@@ -63,7 +63,7 @@ The aggregate layer throws exactly one exception type for any domain-rule
 violation: `DomainException(FailureReason reason, string message)` in
 `Financials.Domain.Common`. Handlers catch this single type and propagate
 `ex.Reason` and `ex.Message` into `Result.Failure(reason, message)`. Read
-[ADR-0001](./adr/0001-failure-vs-exception.md) before assuming any other
+[ADR-0010](./decisions/0010-failure-vs-exception.md) before assuming any other
 pattern. There is a wrinkle: the legacy `Result.Failure(string)` overload
 still exists and sets `Reason = Unspecified` — it survives for cases where
 the reason is implicit from context (CIMS unavailable, etc.) but a few
@@ -84,7 +84,7 @@ inbox has none (it just publishes a local MediatR notification); outbox has
 because the CIMS-side webhook target is not yet specified. This is
 intentional — Pattern B says CIMS being down delays delivery, not lose data;
 NoOp emulates "CIMS perpetually down." Read
-[ADR-0002](./adr/0002-outbox-pattern.md).
+[ADR-0011](./decisions/0011-outbox-pattern-implementation.md).
 
 ### 3.3 Aggregates have private setters + a private parameterless constructor + static factories
 
@@ -249,8 +249,8 @@ Read in order. After this list a competent reader can find anything else.
 
 1. **`docs/architecture.md`** — the conceptual layering diagram. 2 minutes.
 2. **`CLAUDE.md`** — operating rules, integration patterns, anti-patterns. 10 minutes.
-3. **`docs/adr/0001-failure-vs-exception.md`** — the `Result` + `DomainException` convention you'll see everywhere. 5 minutes.
-4. **`docs/adr/0002-outbox-pattern.md`** — what's built vs pending on Pattern B outbound. 5 minutes.
+3. **`docs/decisions/0010-failure-vs-exception.md`** — the `Result` + `DomainException` convention you'll see everywhere. 5 minutes.
+4. **`docs/decisions/0011-outbox-pattern-implementation.md`** — what's built vs pending on Pattern B outbound. 5 minutes.
 5. **`Directory.Build.props`** — the analyzer baseline that turns CS8xxx and CAxxxx into errors. 1 minute.
 6. **`src/Financials.Domain/Budgets/Budget.cs`** — canonical aggregate: private setters, EF ctor, static `Create`, `IAuditable`, `RowVersion`. 5 minutes.
 7. **`src/Financials.Application/Common/Result.cs`** — the `Result<T>` shape and the typed factory helpers. 3 minutes.
@@ -286,8 +286,9 @@ clause nor an ADR documents them. For human triage; not for action here.
 - The "strip the UTF-8 BOM after `dotnet ef migrations add`" rule. CONTRIBUTING.md
   mentions it; nothing enforces it (a missing BOM-strip would be caught by
   `dotnet format --verify-no-changes` on the next pre-commit).
-- Two ADR folders coexist (`docs/decisions/` for product, `docs/adr/` for
-  hardening). No ADR documents why two folders.
+- (Removed 2026-05-16: the `docs/adr/` vs `docs/decisions/` split was
+  consolidated; all ADRs now live under `docs/decisions/`. Finding s4-5
+  closed.)
 - `AssemblyMarker` types (`Financials.Application.ApplicationAssemblyMarker`,
   partial `Program` in `Web`) exist solely for reflection-based assembly
   resolution. Not documented.

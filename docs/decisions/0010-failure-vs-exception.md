@@ -1,13 +1,8 @@
-# ADR-001 (continuation-session) — Domain failure vs. exception
+# ADR-0010: Domain failure vs. exception (Result/FailureReason/DomainException)
 
-**Status:** Accepted (2026-05-15)
+**Status:** Accepted (2026-05-15; renumbered from hardening-pass ADR-0001 to ADR-0010 on 2026-05-16 as part of the docs/adr → docs/decisions consolidation — see finding s4-5)
 **Context:** Sprint-6-closeout codebase, continuation hardening session.
 **Related findings:** M-4 in `docs/code-review-findings.md`.
-
-> Note on numbering: this ADR lives in `docs/adr/` per the autonomous prompt.
-> The pre-existing project ADRs (0001–0009) live in `docs/decisions/` and follow
-> a separate, codebase-historical sequence. The two folders coexist by design:
-> `docs/adr/` is for ADRs introduced during this hardening pass.
 
 ## Problem
 

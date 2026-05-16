@@ -5,7 +5,7 @@ using Financials.Infrastructure.Persistence;
 namespace Financials.Infrastructure.Outbox;
 
 /// <summary>
-/// Pattern B write-side outbox (ADR-0002). Stages an <see cref="OutboxEvent"/>
+/// Pattern B write-side outbox (ADR-0011). Stages an <see cref="OutboxEvent"/>
 /// onto the shared <see cref="FinancialsDbContext"/> so it commits or rolls
 /// back in lockstep with the aggregate mutation that produced it. The row is
 /// not visible to anyone until the caller's <c>SaveChangesAsync</c>.

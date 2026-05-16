@@ -15,15 +15,15 @@ If you are starting on the repo for the first time, do the [README quick start](
    in-flight. We ship sprint by sprint — no F-module-jumping, no Big Bang
    generation. If your change spans sprints, raise it with the maintainer first.
 2. **Find the ADR.** Anything load-bearing has an Architecture Decision Record.
-   Two folders coexist: the historical product ADRs are under
-   [`docs/decisions/`](./docs/decisions/) (0001 architecture baseline through
-   0009 F2 closeout); the hardening-pass ADRs are under
-   [`docs/adr/`](./docs/adr/) ([0001](./docs/adr/0001-failure-vs-exception.md)
-   on Result/FailureReason/DomainException, and
-   [0002](./docs/adr/0002-outbox-pattern.md) on the Pattern B outbox).
-   Re-read the relevant ADRs before modifying the area they describe.
-   New architectural choices need a new ADR (use
-   [`0000-template.md`](./docs/decisions/0000-template.md)).
+   All ADRs live under [`docs/decisions/`](./docs/decisions/) — the
+   hardening-pass ADRs at [0010](./docs/decisions/0010-failure-vs-exception.md)
+   (Result/FailureReason/DomainException) and
+   [0011](./docs/decisions/0011-outbox-pattern-implementation.md) (Pattern B
+   outbox implementation) were originally in `docs/adr/` and were consolidated
+   on 2026-05-16 (finding s4-5). The plan-§9 OAD-2 reservation is filled by
+   [0012](./docs/decisions/0012-event-bus-technology.md). Re-read the relevant
+   ADRs before modifying the area they describe. New architectural choices
+   need a new ADR (use [`0000-template.md`](./docs/decisions/0000-template.md)).
 3. **Find the layer.** Clean Architecture is enforced by reference:
    `Web → Application → Domain`, `Infrastructure → Application → Domain`. Domain
    has no external dependencies and no `PackageReference` lines. If you find
@@ -88,8 +88,8 @@ Pick one of the existing aggregates as a template before adding a new one.
   violations; handlers catch the single type and propagate
   `ex.Reason` / `ex.Message`. **Never** catch
   `ArgumentException`/`InvalidOperationException` to translate them by hand —
-  that's the pattern ADR-0001 rejects. See
-  [`docs/adr/0001-failure-vs-exception.md`](./docs/adr/0001-failure-vs-exception.md).
+  that's the pattern ADR-0010 rejects. See
+  [`docs/decisions/0010-failure-vs-exception.md`](./docs/decisions/0010-failure-vs-exception.md).
 - HTTP / network failures from `CimsClient` translate to
   `Result.DependencyUnavailable("CIMS is currently unavailable...")`.
 - Validation lives in `IValidator<TCommand>` (FluentValidation), invoked by the
@@ -121,7 +121,10 @@ cross-product call site is one of:
   currently unavailable. ...") }`. The handler comment above the call must say
   `// Pattern A — ...`.
 - **Pattern B — Event publication/subscription.** See
-  [`docs/adr/0002-outbox-pattern.md`](./docs/adr/0002-outbox-pattern.md).
+  [`docs/decisions/0011-outbox-pattern-implementation.md`](./docs/decisions/0011-outbox-pattern-implementation.md)
+  (outbox implementation) and
+  [`docs/decisions/0012-event-bus-technology.md`](./docs/decisions/0012-event-bus-technology.md)
+  (event-bus topology choice).
   - **Outgoing**: handlers call `IOutboxEventPublisher.Enqueue(...)` next
     to the aggregate mutation; the row commits in the same EF transaction
     as the aggregate change (atomicity). A `BackgroundService`

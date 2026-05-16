@@ -23,7 +23,7 @@ internal sealed class OutboxEventConfiguration : IEntityTypeConfiguration<Outbox
             .IsUnique()
             .HasDatabaseName("UX_OutboxEvents_EventId");
 
-        // Index supporting the dispatcher's claim query (see ADR-0002).
+        // Index supporting the dispatcher's claim query (see ADR-0011).
         // The dispatcher will do something like:
         //   UPDATE TOP (N) ... OUTPUT ... WHERE Status = 0 ORDER BY OccurredAt
         // and this index keeps that scan cheap.

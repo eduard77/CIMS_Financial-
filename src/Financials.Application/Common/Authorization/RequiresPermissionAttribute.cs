@@ -17,7 +17,7 @@ namespace Financials.Application.Common.Authorization;
 /// public sealed record CloseCommitmentCommand(...);
 /// </code>
 /// </summary>
-/// <remarks>M-2 finding in <c>docs/code-review-findings.md</c>; ADR-0001 § Unauthorized.</remarks>
+/// <remarks>M-2 finding in <c>docs/code-review-findings.md</c>; ADR-0010 § Unauthorized.</remarks>
 [AttributeUsage(AttributeTargets.Class, Inherited = true, AllowMultiple = false)]
 public sealed class RequiresPermissionAttribute : Attribute
 {

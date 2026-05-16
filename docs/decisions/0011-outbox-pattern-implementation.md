@@ -1,9 +1,14 @@
-# ADR-0002 — Pattern B Outbox
+# ADR-0011 — Pattern B Outbox implementation
 
 **Status:** Accepted (write-side); Accepted (dispatcher machinery + retry semantics, post Session 7);
 the concrete CIMS-facing `IOutboxEventTransport` implementation is pending the CIMS-side spec.
+Renumbered from hardening-pass ADR-0002 to ADR-0011 on 2026-05-16 as part of the docs/adr →
+docs/decisions consolidation (finding s4-5). This ADR covers the **implementation** of the
+outbox half of Pattern B; the broader event-bus topology choice it implements is captured in
+[ADR-0012 (event-bus technology)](./0012-event-bus-technology.md).
+
 **Context:** Sprint-6-closeout codebase, continuation hardening sessions 2 + 3, retry-semantics fix in Session 7.
-**Related findings:** M-1 in `docs/code-review-findings.md`.
+**Related findings:** M-1 in `docs/code-review-findings.md`. **Related ADRs:** [ADR-0012](./0012-event-bus-technology.md) (event-bus topology); [ADR-0007](./0007-pattern-b-inbox-hmac.md) (inbox side, HMAC).
 
 ## Update 2026-05-16 (Session 7 — retry-semantics fix)
 

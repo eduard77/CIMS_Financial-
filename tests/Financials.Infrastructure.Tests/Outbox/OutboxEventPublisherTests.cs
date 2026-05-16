@@ -11,7 +11,7 @@ using Testcontainers.MsSql;
 namespace Financials.Infrastructure.Tests.Outbox;
 
 /// <summary>
-/// Pattern B write-side outbox (ADR-0002). Pins the atomicity contract: an
+/// Pattern B write-side outbox (ADR-0011). Pins the atomicity contract: an
 /// aggregate row and its outbox row commit or roll back together. Also
 /// verifies the unique-EventId database-level idempotency.
 /// </summary>
@@ -89,7 +89,7 @@ public sealed class OutboxEventPublisherTests : IAsyncLifetime
     [Fact]
     public async Task Atomicity_aggregate_and_outbox_commit_together()
     {
-        // The Pattern B atomicity contract (CLAUDE.md §6 + ADR-0002):
+        // The Pattern B atomicity contract (CLAUDE.md §6 + ADR-0011):
         // an aggregate state change and its outbox row land in ONE
         // transaction. We exercise that by writing both, then by writing
         // both and forcing a rollback partway, and verifying that the

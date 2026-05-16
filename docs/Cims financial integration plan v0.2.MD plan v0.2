@@ -286,7 +286,7 @@ Decisions cascade into the SDP and into individual ADRs. Each is a one-page deci
 | ID | Decision | Sprint deadline | ADR |
 |---|---|---|---|
 | OAD-1 | Identity and SSO strategy (Azure AD B2C / IdentityServer / Auth0) — and whether tokens issued by CIMS are honoured directly by spokes or whether spokes validate independently against the same identity provider | Sprint 0 | ADR-0003 |
-| OAD-2 | Event-bus technology — lightweight built-in (outbox + HTTP webhooks), managed broker (Azure Service Bus, AWS SNS/SQS), or self-hosted (RabbitMQ) | Sprint 0 | ADR-0002 |
+| OAD-2 | Event-bus technology — lightweight built-in (outbox + HTTP webhooks), managed broker (Azure Service Bus, AWS SNS/SQS), or self-hosted (RabbitMQ) | Sprint 0 | [ADR-0012](./decisions/0012-event-bus-technology.md) |
 | OAD-3 | Multi-tenancy strategy — separate database per tenant per product, or shared database with tenant ID | Sprint 0 | ADR-0004 |
 | OAD-4 | Hosting and data residency — particularly UK-resident storage for HRB projects, and offline-capable handover | Sprint 0 | ADR-0005 |
 | OAD-5 | Money handling and multi-currency policy — `decimal(19,4)` confirmed; multi-currency rules to be specified | Sprint 0 | ADR-0006 |

@@ -8,7 +8,7 @@ namespace Financials.Application.Outbox;
 /// registered and the dispatcher accumulates Pending rows safely
 /// (Pattern B contract: CIMS being down delays delivery, does not lose it).
 ///
-/// See ADR-0002 (<c>docs/adr/0002-outbox-pattern.md</c>).
+/// See ADR-0011 (<c>docs/decisions/0011-outbox-pattern-implementation.md</c>).
 /// </summary>
 public interface IOutboxEventTransport
 {

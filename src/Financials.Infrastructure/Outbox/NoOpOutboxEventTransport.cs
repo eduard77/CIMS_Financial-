@@ -6,7 +6,7 @@ namespace Financials.Infrastructure.Outbox;
 
 /// <summary>
 /// Default <see cref="IOutboxEventTransport"/> registered until the CIMS-side
-/// webhook target is specified (ADR-0002). Returns
+/// webhook target is specified (ADR-0011). Returns
 /// <see cref="OutboxTransportResult.TransientFailure"/> for every event so the
 /// dispatcher keeps the row Pending; the row will be retried indefinitely
 /// (subject to <c>OutboxDispatcherOptions.MaxAttempts</c>) until either a
@@ -41,7 +41,7 @@ internal sealed partial class NoOpOutboxEventTransport : IOutboxEventTransport, 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     [LoggerMessage(EventId = 1, Level = LogLevel.Warning,
-        Message = "Outbox dispatcher is using the NoOp transport — outbound events stage to the OutboxEvents table but DO NOT publish to CIMS. Wire a real IOutboxEventTransport once the CIMS webhook target is specified (ADR-0002).")]
+        Message = "Outbox dispatcher is using the NoOp transport — outbound events stage to the OutboxEvents table but DO NOT publish to CIMS. Wire a real IOutboxEventTransport once the CIMS webhook target is specified (ADR-0011).")]
     private static partial void LogNoOpRegistered(ILogger logger);
 
     [LoggerMessage(EventId = 2, Level = LogLevel.Debug,

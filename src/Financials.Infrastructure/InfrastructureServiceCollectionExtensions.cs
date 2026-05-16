@@ -64,7 +64,7 @@ public static class InfrastructureServiceCollectionExtensions
             .ValidateOnStart();
         services.AddScoped<IInboxEventDispatcher, InboxEventDispatcher>();
 
-        // Pattern B outbox (ADR-0002).
+        // Pattern B outbox (ADR-0011).
         //
         // Write-side: the publisher stages rows on the shared DbContext so
         //   they commit in the same transaction as the aggregate mutation.

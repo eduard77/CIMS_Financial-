@@ -9,7 +9,7 @@ namespace Financials.Application.Common;
 ///
 /// A failed Result carries a <see cref="FailureReason"/> (defaults to
 /// <see cref="FailureReason.Unspecified"/> for the legacy single-string
-/// overload). See ADR-0001 in <c>docs/adr/</c>.
+/// overload). See ADR-0010 (<c>docs/decisions/0010-failure-vs-exception.md</c>).
 /// </summary>
 public class Result
 {

@@ -1,7 +1,7 @@
 namespace Financials.Infrastructure.Outbox;
 
 /// <summary>
-/// Persisted record of an outbound Pattern B event (ADR-0002). The
+/// Persisted record of an outbound Pattern B event (ADR-0011). The
 /// <see cref="EventId"/> is the idempotency key; a unique index on the
 /// column makes double-enqueue (e.g. handler retry) a database-level
 /// reject rather than a duplicate publication.

@@ -134,7 +134,7 @@ No test pins the enum ordinal mapping. Fix is either: stamp explicit
 "do not reorder" comment, or — better — interpolate
 `(int)OutboxEventStatus.Pending` into the SQL at dispatcher startup. Minor.
 
-### s4-5 — Two ADR folders coexist with no ADR documenting why
+### s4-5 — Two ADR folders coexist with no ADR documenting why — **RESOLVED 2026-05-16**
 
 `docs/decisions/` (product, 0001–0009) and `docs/adr/` (hardening pass,
 0001–0002) both contain accepted ADRs with overlapping numbering schemes.
@@ -144,6 +144,14 @@ folder grows further, the numbering collisions will start to bite
 (`adr/0003` vs `decisions/0010` — neither is obviously the "next" one).
 Nit. The cheapest fix is one ADR in `decisions/` deciding which folder
 new ADRs go in, and renumbering the hardening ones if needed.
+
+**Resolved** on 2026-05-16: hardening ADRs consolidated into
+`docs/decisions/` as `0010-failure-vs-exception.md` (was
+`adr/0001-failure-vs-exception.md`) and `0011-outbox-pattern-implementation.md`
+(was `adr/0002-outbox-pattern.md`). New ADR `0012-event-bus-technology.md`
+fills the plan §9 OAD-2 reservation at the next free slot (plan §9 updated
+to point at 0012). `docs/adr/` removed. All cross-references in code, README,
+CONTRIBUTING, architecture-overview, and autonomous-session-log updated.
 
 ---
 

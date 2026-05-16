@@ -155,7 +155,7 @@ change) and the outbox atomicity test (still important) as the top two.
 Keeping ADR-0001 because the human hasn't reviewed it yet; replacing the
 others with the higher-priority Session-3 items.
 
-1. **ADR-0001 (`docs/adr/0001-failure-vs-exception.md`).** Still the most
+1. **ADR-0010 (`docs/decisions/0010-failure-vs-exception.md`; renumbered from hardening-pass ADR-0001 on 2026-05-16).** Still the most
    consequential convention shift; if you disagree with the
    FailureReason set or the DomainException-as-single-carrier approach,
    M-4 needs rework across every aggregate and handler.
@@ -292,7 +292,7 @@ Format check (`dotnet format --verify-no-changes`) exits 0.
 
 **Top 3 things to look at first when reviewing:**
 
-1. **ADR-0001 (`docs/adr/0001-failure-vs-exception.md`)** — this is the
+1. **ADR-0010 (`docs/decisions/0010-failure-vs-exception.md`; renumbered from hardening-pass ADR-0001 on 2026-05-16)** — this is the
    convention shift that drove the M-4 refactor across every aggregate and
    handler. If you disagree with the FailureReason set or the
    DomainException-as-single-carrier approach, the rest of the M-4 work

@@ -13,7 +13,7 @@ namespace Financials.Application.Common.Behaviours;
 /// <see cref="FailureReason.Unauthorized"/>.
 ///
 /// Runs before validation so we don't reveal which fields are wrong to an
-/// unauthorised caller. See ADR-0001 (FailureReason) and the M-2 finding.
+/// unauthorised caller. See ADR-0010 (FailureReason) and the M-2 finding.
 /// </summary>
 public sealed partial class AuthorizationBehaviour<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull

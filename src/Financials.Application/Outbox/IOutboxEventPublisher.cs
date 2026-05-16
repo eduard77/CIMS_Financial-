@@ -1,11 +1,11 @@
 namespace Financials.Application.Outbox;
 
 /// <summary>
-/// Pattern B outbound publisher (ADR-0002). Aggregate handlers call
+/// Pattern B outbound publisher (ADR-0011). Aggregate handlers call
 /// <see cref="Enqueue"/> to stage an event for delivery to CIMS; the row
 /// is persisted in the same EF transaction as the aggregate mutation,
 /// committed by the handler's <c>SaveChangesAsync</c>. A separate hosted
-/// service (deferred per ADR-0002) drains the table.
+/// service (deferred per ADR-0011) drains the table.
 /// </summary>
 public interface IOutboxEventPublisher
 {
