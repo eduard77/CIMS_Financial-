@@ -179,8 +179,9 @@ public sealed class OutboxEventPublisherTests : IAsyncLifetime
         await using (var update = new FinancialsDbContext(options))
         {
             var row = await update.OutboxEvents.SingleAsync(e => e.EventId == eventId);
-            row.RecordAttempt(DateTime.UtcNow, "transient HTTP 503");   // 1 attempt, still Pending
-            row.MarkDispatched(DateTime.UtcNow);                         // 2 attempts, Dispatched
+            var now = DateTime.UtcNow;
+            row.RecordAttempt(now, "transient HTTP 503", now.AddSeconds(5));   // 1 attempt, still Pending
+            row.MarkDispatched(DateTime.UtcNow);                                // 2 attempts, Dispatched
             await update.SaveChangesAsync();
         }
 

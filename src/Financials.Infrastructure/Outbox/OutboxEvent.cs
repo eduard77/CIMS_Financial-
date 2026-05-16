@@ -24,6 +24,15 @@ internal sealed class OutboxEvent
 
     public int AttemptCount { get; private set; }
 
+    /// <summary>
+    /// Earliest UTC time at which the dispatcher may re-attempt this row.
+    /// Null means "claim on the next poll" (the row has never been attempted
+    /// or is freshly enqueued). Set by the dispatcher after each transient
+    /// failure to the now + backoff(attemptCount) point. The claim query
+    /// filters with <c>NextAttemptAt IS NULL OR NextAttemptAt &lt;= @now</c>.
+    /// </summary>
+    public DateTime? NextAttemptAt { get; private set; }
+
     // EF Core requires a parameterless constructor for materialisation; not for application use.
     private OutboxEvent()
     {
@@ -65,26 +74,37 @@ internal sealed class OutboxEvent
         DispatchedAt = DateTime.SpecifyKind(dispatchedAt, DateTimeKind.Utc);
         FailureReason = null;
         AttemptCount += 1;
+        NextAttemptAt = null;
     }
 
+    /// <summary>
+    /// Mark the row terminally Failed. Reserved for permanent failures
+    /// (the transport classified the failure as non-retriable) and poison
+    /// messages (the transport itself threw). Transient failures retry
+    /// indefinitely per plan §4 — they go through
+    /// <see cref="RecordAttempt"/> instead.
+    /// </summary>
     public void MarkFailed(string reason, DateTime attemptedAt)
     {
         Status = OutboxEventStatus.Failed;
         DispatchedAt = DateTime.SpecifyKind(attemptedAt, DateTimeKind.Utc);
         FailureReason = reason;
         AttemptCount += 1;
+        NextAttemptAt = null;
     }
 
     /// <summary>
-    /// Record a failed attempt without flipping to terminal Failed. Used by
-    /// the future dispatcher to track retries until <see cref="MarkFailed"/>
-    /// is invoked after the configured max-attempts cap.
+    /// Record a transient failure: the row stays Pending, the attempt count
+    /// increments, and <see cref="NextAttemptAt"/> is set to gate the next
+    /// claim. Plan §4 requires indefinite retry with backoff; there is no
+    /// terminal-Failed transition from this path.
     /// </summary>
-    public void RecordAttempt(DateTime attemptedAt, string reason)
+    public void RecordAttempt(DateTime attemptedAt, string reason, DateTime nextAttemptAt)
     {
         Status = OutboxEventStatus.Pending;
         DispatchedAt = DateTime.SpecifyKind(attemptedAt, DateTimeKind.Utc);
         FailureReason = reason;
         AttemptCount += 1;
+        NextAttemptAt = DateTime.SpecifyKind(nextAttemptAt, DateTimeKind.Utc);
     }
 }

@@ -13,9 +13,12 @@ namespace Financials.Infrastructure.Tests.Outbox;
 
 /// <summary>
 /// End-to-end tests for <see cref="OutboxDispatcherService"/> against a real
-/// SQL Server (via Testcontainers). Covers the four scenarios from the
-/// continuation prompt: concurrent claim disjointness, retry-then-success,
-/// max-retry exhaustion, transport-throws-poison.
+/// SQL Server (via Testcontainers). Plan §4 contract:
+///   * Transient failures retry indefinitely with exponential backoff —
+///     never reach terminal Failed from this path.
+///   * PermanentFailure: row marked Failed (terminal).
+///   * Transport throws: row marked Failed (terminal poison).
+///   * Success: row marked Dispatched.
 /// </summary>
 [Trait("Category", "Infrastructure")]
 public sealed class OutboxDispatcherServiceTests : IAsyncLifetime
@@ -62,20 +65,34 @@ public sealed class OutboxDispatcherServiceTests : IAsyncLifetime
             .Options;
     }
 
+    /// <summary>
+    /// Test clock backed by a mutable field so individual tests can advance
+    /// time between dispatcher cycles. The dispatcher resolves <see cref="IClock"/>
+    /// once per <c>RunOnceAsync</c> via the DI scope; the singleton registration
+    /// in <c>BuildDispatcher</c> means every poll sees the current value.
+    /// </summary>
+    private sealed class MutableTestClock : IClock
+    {
+        private DateTime _now;
+        public MutableTestClock(DateTime initial) => _now = DateTime.SpecifyKind(initial, DateTimeKind.Utc);
+        public DateTime UtcNow => _now;
+        public void Advance(TimeSpan amount) => _now = _now.Add(amount);
+    }
+
     private static OutboxDispatcherService BuildDispatcher(
         string connectionString,
         IOutboxEventTransport transport,
-        OutboxDispatcherOptions? dispatcherOpts = null)
+        OutboxDispatcherOptions? dispatcherOpts = null,
+        IClock? clock = null)
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        var fakeClock = Substitute.For<IClock>();
-        fakeClock.UtcNow.Returns(DateTime.UtcNow);
+        var resolvedClock = clock ?? CreateFixedClock();
         var fakeUser = Substitute.For<ICurrentUserService>();
         fakeUser.UserId.Returns("dispatcher-test-user");
-        services.AddSingleton(fakeClock);
+        services.AddSingleton<IClock>(resolvedClock);
         services.AddSingleton(fakeUser);
-        services.AddSingleton(new AuditingSaveChangesInterceptor(fakeClock, fakeUser));
+        services.AddSingleton(new AuditingSaveChangesInterceptor(resolvedClock, fakeUser));
         services.AddDbContext<FinancialsDbContext>((sp, options) =>
         {
             options.UseSqlServer(connectionString);
@@ -86,7 +103,8 @@ public sealed class OutboxDispatcherServiceTests : IAsyncLifetime
         var opts = dispatcherOpts ?? new OutboxDispatcherOptions
         {
             BatchSize = 10,
-            MaxAttempts = 5,
+            BaseBackoff = TimeSpan.Zero,   // tests default to "no backoff" so polls re-claim immediately.
+            MaxBackoff = TimeSpan.FromMinutes(5),
             DisableBackgroundLoop = true,
         };
         services.AddSingleton<IOptions<OutboxDispatcherOptions>>(Options.Create(opts));
@@ -96,6 +114,13 @@ public sealed class OutboxDispatcherServiceTests : IAsyncLifetime
             provider.GetRequiredService<IServiceScopeFactory>(),
             provider.GetRequiredService<IOptions<OutboxDispatcherOptions>>(),
             NullLogger<OutboxDispatcherService>.Instance);
+    }
+
+    private static IClock CreateFixedClock()
+    {
+        var clock = Substitute.For<IClock>();
+        clock.UtcNow.Returns(DateTime.UtcNow);
+        return clock;
     }
 
     private static async Task SeedPendingAsync(string connectionString, params Guid[] eventIds)
@@ -149,6 +174,7 @@ public sealed class OutboxDispatcherServiceTests : IAsyncLifetime
             row.Status.Should().Be(OutboxEventStatus.Dispatched);
             row.AttemptCount.Should().Be(1);
             row.FailureReason.Should().BeNull();
+            row.NextAttemptAt.Should().BeNull("Dispatched is terminal; NextAttemptAt is cleared");
         }
     }
 
@@ -160,15 +186,17 @@ public sealed class OutboxDispatcherServiceTests : IAsyncLifetime
         await SeedPendingAsync(options, id);
 
         var transport = FakeOutboxEventTransport.FailsFirstNAttempts(2);
+        // BaseBackoff = Zero so the row is re-claimable on the next poll
+        // without any clock advancement — this test pins the retry-then-success
+        // flow, not the backoff timing.
         var dispatcher = BuildDispatcher(options, transport, new OutboxDispatcherOptions
         {
             BatchSize = 10,
-            MaxAttempts = 5,
+            BaseBackoff = TimeSpan.Zero,
+            MaxBackoff = TimeSpan.FromMinutes(5),
             DisableBackgroundLoop = true,
         });
 
-        // Drive three poll cycles. Cycle 1 + 2 should record TransientFailure,
-        // cycle 3 should mark Dispatched.
         await dispatcher.RunOnceAsync(CancellationToken.None);
         await dispatcher.RunOnceAsync(CancellationToken.None);
         await dispatcher.RunOnceAsync(CancellationToken.None);
@@ -177,81 +205,113 @@ public sealed class OutboxDispatcherServiceTests : IAsyncLifetime
         row.Status.Should().Be(OutboxEventStatus.Dispatched);
         row.AttemptCount.Should().Be(3, "two failed attempts + one successful attempt = 3");
         row.FailureReason.Should().BeNull("MarkDispatched clears the prior failure reason");
+        row.NextAttemptAt.Should().BeNull("Dispatched is terminal; NextAttemptAt is cleared");
         transport.Calls.Should().HaveCount(3);
     }
 
     [Fact]
-    public async Task Max_retry_path_always_fails_event_marked_failed_after_max_attempts()
+    public async Task Transient_failure_retries_indefinitely_until_success()
     {
+        // Plan §4 contract: "Retry indefinitely with backoff. CIMS being down
+        // delays delivery; it never loses data." Ten consecutive transient
+        // failures must NOT lead to terminal Failed.
         var options = await MigrateAndReturnConnectionStringAsync();
         var id = Guid.NewGuid();
         await SeedPendingAsync(options, id);
 
-        var transport = FakeOutboxEventTransport.AlwaysTransientFails();
+        const int TransientFailuresBeforeSuccess = 10;
+        var transport = FakeOutboxEventTransport.FailsFirstNAttempts(TransientFailuresBeforeSuccess);
         var dispatcher = BuildDispatcher(options, transport, new OutboxDispatcherOptions
         {
             BatchSize = 10,
-            MaxAttempts = 3,
+            BaseBackoff = TimeSpan.Zero,
+            MaxBackoff = TimeSpan.FromMinutes(5),
             DisableBackgroundLoop = true,
         });
 
-        // 3 cycles: attempt 1 -> Pending(1), attempt 2 -> Pending(2),
-        // attempt 3 -> Failed (because 3 >= MaxAttempts=3).
+        // Drive 11 cycles: cycles 1..10 transient-fail, cycle 11 succeeds.
+        for (var i = 0; i < TransientFailuresBeforeSuccess + 1; i++)
+        {
+            var status = (await ReadAsync(options, id)).Status;
+            status.Should().NotBe(OutboxEventStatus.Failed,
+                $"after cycle {i}, the row must NOT be Failed — plan §4 requires indefinite retry on transient failures");
+            await dispatcher.RunOnceAsync(CancellationToken.None);
+        }
+
+        var final = await ReadAsync(options, id);
+        final.Status.Should().Be(OutboxEventStatus.Dispatched);
+        final.AttemptCount.Should().Be(11, "10 transient failures + 1 successful attempt = 11");
+        transport.Calls.Should().HaveCount(11);
+    }
+
+    [Fact]
+    public async Task Transient_failure_sets_next_attempt_at_into_the_future_and_row_is_not_re_claimed_until_it_elapses()
+    {
+        // Pins the backoff gate. After a transient failure, NextAttemptAt is
+        // set to now + backoff. A subsequent poll BEFORE the backoff elapses
+        // must NOT re-claim the row; a poll AFTER it elapses must.
+        var options = await MigrateAndReturnConnectionStringAsync();
+        var id = Guid.NewGuid();
+        await SeedPendingAsync(options, id);
+
+        var clock = new MutableTestClock(DateTime.UtcNow);
+        var transport = FakeOutboxEventTransport.FailsFirstNAttempts(1);
+        var backoffOpts = new OutboxDispatcherOptions
+        {
+            BatchSize = 10,
+            BaseBackoff = TimeSpan.FromSeconds(60),   // first failure -> next attempt in 60s
+            MaxBackoff = TimeSpan.FromMinutes(5),
+            DisableBackgroundLoop = true,
+        };
+        var dispatcher = BuildDispatcher(options, transport, backoffOpts, clock);
+
+        // Cycle 1: transient failure. NextAttemptAt = now + 60s.
         await dispatcher.RunOnceAsync(CancellationToken.None);
+
+        var afterFirst = await ReadAsync(options, id);
+        afterFirst.Status.Should().Be(OutboxEventStatus.Pending);
+        afterFirst.AttemptCount.Should().Be(1);
+        afterFirst.NextAttemptAt.Should().NotBeNull();
+        transport.Calls.Should().HaveCount(1);
+
+        // Advance 30s — still inside the backoff window. The next poll must
+        // NOT claim the row (the transport call count stays at 1).
+        clock.Advance(TimeSpan.FromSeconds(30));
+        var completedInWindow = await dispatcher.RunOnceAsync(CancellationToken.None);
+        completedInWindow.Should().Be(0);
+        transport.Calls.Should().HaveCount(1, "backoff has not elapsed; the row must not be re-claimed");
+        var inWindow = await ReadAsync(options, id);
+        inWindow.AttemptCount.Should().Be(1, "attempt count must not change on an unclaimed cycle");
+
+        // Advance another 31s (total 61s) — backoff has now elapsed. Next
+        // poll should re-claim. Transport returns Success on the second
+        // attempt; row goes Dispatched.
+        clock.Advance(TimeSpan.FromSeconds(31));
         await dispatcher.RunOnceAsync(CancellationToken.None);
+        transport.Calls.Should().HaveCount(2, "backoff elapsed; the row should now be re-claimed");
+        var afterBackoff = await ReadAsync(options, id);
+        afterBackoff.Status.Should().Be(OutboxEventStatus.Dispatched);
+        afterBackoff.AttemptCount.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task PermanentFailure_result_marks_row_failed_immediately()
+    {
+        // PermanentFailure is the ONLY non-throwing path to terminal Failed.
+        var options = await MigrateAndReturnConnectionStringAsync();
+        var id = Guid.NewGuid();
+        await SeedPendingAsync(options, id);
+
+        var transport = FakeOutboxEventTransport.AlwaysPermanentFails();
+        var dispatcher = BuildDispatcher(options, transport);
+
         await dispatcher.RunOnceAsync(CancellationToken.None);
 
         var row = await ReadAsync(options, id);
         row.Status.Should().Be(OutboxEventStatus.Failed);
-        row.AttemptCount.Should().Be(3);
-        row.FailureReason.Should().Contain("max is 3");
-    }
-
-    [Fact]
-    public async Task After_max_retry_dispatcher_does_not_re_attempt_failed_rows()
-    {
-        // Failed rows MUST NOT block other events. Once a row reaches Failed,
-        // the dispatcher skips it forever (Status != Pending).
-        var options = await MigrateAndReturnConnectionStringAsync();
-        var failedId = Guid.NewGuid();
-        var liveId = Guid.NewGuid();
-        await SeedPendingAsync(options, failedId, liveId);
-
-        // First, walk the failedId to Failed using a transient-fail transport.
-        var failingTransport = FakeOutboxEventTransport.AlwaysTransientFails();
-        var initialDispatcher = BuildDispatcher(options, failingTransport, new OutboxDispatcherOptions
-        {
-            BatchSize = 10,
-            MaxAttempts = 2,
-            DisableBackgroundLoop = true,
-        });
-        await initialDispatcher.RunOnceAsync(CancellationToken.None);
-        await initialDispatcher.RunOnceAsync(CancellationToken.None);
-
-        // Confirm failedId is Failed and liveId is still Pending (the failing
-        // transport saw both, marked failedId Failed at attempt 2, and
-        // attempted liveId twice — but liveId is at attempt 2 too).
-        // To make this realistic, re-seed liveId fresh:
-        await using (var db = new FinancialsDbContext(OptionsFor(options)))
-        {
-            var stale = await db.OutboxEvents.SingleAsync(e => e.EventId == liveId);
-            db.OutboxEvents.Remove(stale);
-            await db.SaveChangesAsync();
-        }
-        await SeedPendingAsync(options, liveId);
-
-        // Now switch to a succeeding transport. Run dispatcher: liveId should
-        // be dispatched and the Failed row should be skipped.
-        var goodTransport = FakeOutboxEventTransport.AlwaysSucceeds();
-        var resumeDispatcher = BuildDispatcher(options, goodTransport);
-        await resumeDispatcher.RunOnceAsync(CancellationToken.None);
-
-        var failed = await ReadAsync(options, failedId);
-        var live = await ReadAsync(options, liveId);
-
-        failed.Status.Should().Be(OutboxEventStatus.Failed, "Failed rows stay Failed; dispatcher doesn't re-attempt");
-        live.Status.Should().Be(OutboxEventStatus.Dispatched);
-        goodTransport.Calls.Select(c => c.EventId).Should().BeEquivalentTo(new[] { liveId });
+        row.AttemptCount.Should().Be(1, "PermanentFailure is terminal on the first attempt");
+        row.FailureReason.Should().Contain("PermanentFailure");
+        row.NextAttemptAt.Should().BeNull("terminal Failed clears NextAttemptAt");
     }
 
     [Fact]
@@ -262,7 +322,6 @@ public sealed class OutboxDispatcherServiceTests : IAsyncLifetime
         var healthy = Guid.NewGuid();
         await SeedPendingAsync(options, poison, healthy);
 
-        // Throw for the poison row, succeed for the healthy one.
         var transport = new FakeRoutedTransport((env) =>
         {
             if (env.EventId == poison)
@@ -287,26 +346,43 @@ public sealed class OutboxDispatcherServiceTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task PermanentFailure_result_marks_row_failed_without_retry()
+    public async Task Failed_rows_are_not_re_attempted_on_subsequent_polls()
     {
+        // Once a row is Failed via PermanentFailure or poison, the dispatcher
+        // skips it on subsequent polls (Status != Pending). Failed rows must
+        // not block other events.
         var options = await MigrateAndReturnConnectionStringAsync();
-        var id = Guid.NewGuid();
-        await SeedPendingAsync(options, id);
+        var failedId = Guid.NewGuid();
+        var liveId = Guid.NewGuid();
+        await SeedPendingAsync(options, failedId, liveId);
 
-        var transport = FakeOutboxEventTransport.AlwaysPermanentFails();
-        var dispatcher = BuildDispatcher(options, transport, new OutboxDispatcherOptions
-        {
-            BatchSize = 10,
-            MaxAttempts = 5,
-            DisableBackgroundLoop = true,
-        });
-
+        // Walk failedId to Failed using PermanentFailure on the first row,
+        // Success on the second.
+        var routedTransport = new FakeRoutedTransport(env =>
+            env.EventId == failedId
+                ? OutboxTransportResult.PermanentFailure
+                : OutboxTransportResult.Success);
+        var dispatcher = BuildDispatcher(options, routedTransport);
         await dispatcher.RunOnceAsync(CancellationToken.None);
 
-        var row = await ReadAsync(options, id);
-        row.Status.Should().Be(OutboxEventStatus.Failed);
-        row.AttemptCount.Should().Be(1, "PermanentFailure is terminal on the first attempt");
-        row.FailureReason.Should().Contain("PermanentFailure");
+        var afterFirst = await ReadAsync(options, failedId);
+        afterFirst.Status.Should().Be(OutboxEventStatus.Failed);
+        var liveAfterFirst = await ReadAsync(options, liveId);
+        liveAfterFirst.Status.Should().Be(OutboxEventStatus.Dispatched);
+
+        // Seed another live row and run a second cycle. The previously-failed
+        // row must NOT appear in the dispatcher's batch.
+        var secondLiveId = Guid.NewGuid();
+        await SeedPendingAsync(options, secondLiveId);
+
+        var recordingTransport = FakeOutboxEventTransport.AlwaysSucceeds();
+        var resumeDispatcher = BuildDispatcher(options, recordingTransport);
+        await resumeDispatcher.RunOnceAsync(CancellationToken.None);
+
+        recordingTransport.Calls.Select(c => c.EventId).Should().NotContain(failedId,
+            "Failed rows stay Failed; the dispatcher must not re-attempt them");
+        recordingTransport.Calls.Select(c => c.EventId).Should().Contain(secondLiveId,
+            "fresh pending rows must still be claimed despite a Failed sibling existing");
     }
 
     [Fact]
@@ -324,17 +400,18 @@ public sealed class OutboxDispatcherServiceTests : IAsyncLifetime
         var dispatcherA = BuildDispatcher(options, transportA, new OutboxDispatcherOptions
         {
             BatchSize = 10,
-            MaxAttempts = 5,
+            BaseBackoff = TimeSpan.Zero,
+            MaxBackoff = TimeSpan.FromMinutes(5),
             DisableBackgroundLoop = true,
         });
         var dispatcherB = BuildDispatcher(options, transportB, new OutboxDispatcherOptions
         {
             BatchSize = 10,
-            MaxAttempts = 5,
+            BaseBackoff = TimeSpan.Zero,
+            MaxBackoff = TimeSpan.FromMinutes(5),
             DisableBackgroundLoop = true,
         });
 
-        // Drive multiple parallel runs until all 30 are processed.
         for (var i = 0; i < 5; i++)
         {
             var taskA = dispatcherA.RunOnceAsync(CancellationToken.None);
@@ -350,12 +427,41 @@ public sealed class OutboxDispatcherServiceTests : IAsyncLifetime
         calledByA.Union(calledByB).Should().BeEquivalentTo(ids,
             "every seeded event must end up claimed by exactly one dispatcher");
 
-        // And every row should be in Dispatched state.
         foreach (var id in ids)
         {
             var row = await ReadAsync(options, id);
             row.Status.Should().Be(OutboxEventStatus.Dispatched);
         }
+    }
+
+    [Fact]
+    public void ComputeBackoff_doubles_until_cap_then_clamps()
+    {
+        // Pins the exponential-with-cap math directly. Base 5s, cap 5min.
+        //   attempt 1 -> 5s
+        //   attempt 2 -> 10s
+        //   attempt 3 -> 20s
+        //   attempt 4 -> 40s
+        //   attempt 5 -> 80s
+        //   attempt 6 -> 160s
+        //   attempt 7 -> 300s (cap reached: 320s -> 300s)
+        //   attempt 50 -> 300s (still capped, math stays finite)
+        var opts = new OutboxDispatcherOptions
+        {
+            BaseBackoff = TimeSpan.FromSeconds(5),
+            MaxBackoff = TimeSpan.FromMinutes(5),
+        };
+
+        OutboxDispatcherService.ComputeBackoff(1, opts).Should().Be(TimeSpan.FromSeconds(5));
+        OutboxDispatcherService.ComputeBackoff(2, opts).Should().Be(TimeSpan.FromSeconds(10));
+        OutboxDispatcherService.ComputeBackoff(3, opts).Should().Be(TimeSpan.FromSeconds(20));
+        OutboxDispatcherService.ComputeBackoff(4, opts).Should().Be(TimeSpan.FromSeconds(40));
+        OutboxDispatcherService.ComputeBackoff(5, opts).Should().Be(TimeSpan.FromSeconds(80));
+        OutboxDispatcherService.ComputeBackoff(6, opts).Should().Be(TimeSpan.FromSeconds(160));
+        OutboxDispatcherService.ComputeBackoff(7, opts).Should().Be(TimeSpan.FromMinutes(5),
+            "5s * 2^6 = 320s, capped at 300s = 5min");
+        OutboxDispatcherService.ComputeBackoff(50, opts).Should().Be(TimeSpan.FromMinutes(5),
+            "the cap holds for arbitrarily large attempt counts");
     }
 
     private sealed class FakeRoutedTransport : IOutboxEventTransport

@@ -55,5 +55,11 @@ internal sealed class OutboxEventConfiguration : IEntityTypeConfiguration<Outbox
         builder.Property(e => e.AttemptCount)
             .IsRequired()
             .HasDefaultValue(0);
+
+        // The dispatcher's claim query filters on this in addition to Status;
+        // null means "claim on the next poll". Set by the dispatcher to
+        // now + backoff(attemptCount) after each transient failure.
+        builder.Property(e => e.NextAttemptAt)
+            .HasColumnType("datetime2(7)");
     }
 }

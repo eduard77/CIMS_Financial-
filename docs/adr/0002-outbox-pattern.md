@@ -1,9 +1,68 @@
 # ADR-0002 — Pattern B Outbox
 
-**Status:** Accepted (write-side); Accepted (dispatcher machinery);
+**Status:** Accepted (write-side); Accepted (dispatcher machinery + retry semantics, post Session 7);
 the concrete CIMS-facing `IOutboxEventTransport` implementation is pending the CIMS-side spec.
-**Context:** Sprint-6-closeout codebase, continuation hardening sessions 2 + 3.
+**Context:** Sprint-6-closeout codebase, continuation hardening sessions 2 + 3, retry-semantics fix in Session 7.
 **Related findings:** M-1 in `docs/code-review-findings.md`.
+
+## Update 2026-05-16 (Session 7 — retry-semantics fix)
+
+The transient-failure retry contract has been rewritten to match plan §4.
+Previously the dispatcher treated every fifth transient failure as terminal
+(`MaxAttempts = 5`); plan §4 says outright "Retry indefinitely with backoff.
+CIMS being down delays delivery; it never loses data." The terminal-after-5
+behaviour was an over-eager safeguard that violated the spec.
+
+What changed:
+
+- `OutboxEvent` gains a nullable `NextAttemptAt` column (migration
+  `AddOutboxEventNextAttemptAt`). `null` means "claim on the next poll";
+  otherwise the dispatcher's claim query skips the row until
+  `NextAttemptAt <= @now`.
+- `OutboxDispatcherOptions.MaxAttempts` is removed. New knobs:
+  `BaseBackoff` (default 5 s) and `MaxBackoff` (default 5 min).
+- Transient failures: `RecordAttempt(now, "TransientFailure",
+  now + ComputeBackoff(nextAttempt))`. The row stays Pending; attempt
+  count increments; backoff is `BaseBackoff * 2^(attempt-1)` capped at
+  `MaxBackoff`. There is no terminal-Failed transition from this path.
+- Permanent failures (`OutboxTransportResult.PermanentFailure`): row marked
+  `Failed` immediately. This is the only non-throwing path to terminal
+  Failed.
+- Transport throws: row marked `Failed` (terminal poison-message guard).
+  Unchanged.
+- The claim SQL gains
+  `AND (NextAttemptAt IS NULL OR NextAttemptAt <= @now)`. The `@now`
+  parameter must be `SqlDbType.DateTime2` to match the column precision —
+  the default `SqlDbType.DateTime` (~3.33 ms precision) rounds the
+  comparison and silently excludes rows that should be claimable.
+
+Operational consequence: with the registered `NoOpOutboxEventTransport`
+returning `TransientFailure` for every event, rows accumulate `Pending`
+**indefinitely** until a real transport is registered. That is exactly the
+plan §4 guarantee ("CIMS being down delays delivery; it never loses
+data"). The previous note in this ADR (rows would transition Pending →
+Failed after MaxAttempts polls) no longer applies — and the operational
+mitigation it suggested (bump MaxAttempts very high) is no longer
+necessary.
+
+Tests rewritten / added in `OutboxDispatcherServiceTests`:
+
+- New: `Transient_failure_retries_indefinitely_until_success` — 10
+  transient failures followed by 1 success; row reaches Dispatched with
+  attempt count 11, never touches Failed. Proves the indefinite-retry
+  contract.
+- New: `Transient_failure_sets_next_attempt_at_into_the_future_and_row_is_not_re_claimed_until_it_elapses`
+  — pins the backoff gate using a `MutableTestClock`.
+- New: `ComputeBackoff_doubles_until_cap_then_clamps` — direct test of
+  the exponential-with-cap math; cap reached at attempt 7 for the
+  defaults (5 s × 2⁶ = 320 s → 300 s).
+- Removed: `Max_retry_path_always_fails_event_marked_failed_after_max_attempts`
+  — its premise (terminal Failed after N transient failures) is now wrong.
+- Rewritten: `After_max_retry_dispatcher_does_not_re_attempt_failed_rows`
+  → `Failed_rows_are_not_re_attempted_on_subsequent_polls` — uses
+  `PermanentFailure` as the path to Failed (the only non-throwing path).
+
+---
 
 ## Update 2026-05-15 (Session 3)
 
@@ -62,6 +121,11 @@ reviewed** before F3 starts publishing events. The reasonable mitigation
 is to bump `MaxAttempts` very high in the no-CIMS configuration, OR to
 register a transport that returns Success-without-publishing while the
 CIMS endpoint is being built. Either is a config-only change.
+
+> *Superseded by Session 7 (above):* the operational note no longer
+> applies. Transient failures retry indefinitely; the NoOp transport
+> leaves rows Pending forever, which is the plan §4 guarantee. No
+> mitigation is required.
 
 ---
 
